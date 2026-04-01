@@ -1,0 +1,24 @@
+# Source (compiled to dist/)
+src/
+
+# Dev files
+*.ts
+!dist/**/*.d.ts
+tsconfig.json
+demo.ts
+demo-screenshot.html
+
+# Project files not needed by consumers
+.mythosignore
+MEMORY.md
+AGENTS.md
+assets/
+node_modules/
+
+# Misc
+.git
+.gitignore
+.DS_Store
+*.log
+.env
+.env.*
