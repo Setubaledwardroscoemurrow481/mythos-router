@@ -13,16 +13,23 @@
 
 **The leaked Anthropic reasoning protocol. Running locally.**
 
+[![npm](https://img.shields.io/npm/v/mythos-router?style=flat-square&color=cc785c)](https://www.npmjs.com/package/mythos-router)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![Claude](https://img.shields.io/badge/Claude-Opus_4.6-cc785c?style=flat-square)](https://anthropic.com)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
-
-</div>
+[![GitHub stars](https://img.shields.io/github/stars/thewaltero/mythos-router?style=social)](https://github.com/thewaltero/mythos-router)
 
 <p align="center">
   <img src="assets/demo.png" alt="mythos-router terminal demo" width="700" />
 </p>
+
+```bash
+# Try it now
+npx mythos-router chat
+```
+
+</div>
 
 ---
 
@@ -51,17 +58,33 @@ Zero slop. Zero hallucinated state. Full adaptive thinking.
 
 ## Installation
 
-```bash
-# Clone
-git clone https://github.com/thewaltero/mythos-router.git
-cd mythos-router
+### Quick Start (npm)
 
-# Install
-npm install
+```bash
+# Install globally
+npm install -g mythos-router
 
 # Set your API key
 export ANTHROPIC_API_KEY="sk-ant-..."
 # Windows: $env:ANTHROPIC_API_KEY = "sk-ant-..."
+
+# Go
+mythos chat
+```
+
+### Or try without installing
+
+```bash
+npx mythos-router chat
+```
+
+### From Source
+
+```bash
+git clone https://github.com/thewaltero/mythos-router.git
+cd mythos-router
+npm install
+npm run chat
 ```
 
 ---
@@ -71,9 +94,9 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 ### `mythos chat` — Interactive Capybara Session
 
 ```bash
-npx tsx src/cli.ts chat                  # Full power (high effort)
-npx tsx src/cli.ts chat --effort low     # Budget mode
-npx tsx src/cli.ts chat --effort medium  # Balanced
+mythos chat                  # Full power (high effort)
+mythos chat --effort low     # Budget mode
+mythos chat --effort medium  # Balanced
 ```
 
 In-session commands:
@@ -84,7 +107,7 @@ In-session commands:
 ### `mythos verify` — Zero-Drift Codebase Scan
 
 ```bash
-npx tsx src/cli.ts verify
+mythos verify
 ```
 
 Scans every file in your project and cross-references against `MEMORY.md`:
@@ -95,8 +118,8 @@ Scans every file in your project and cross-references against `MEMORY.md`:
 ### `mythos dream` — Memory Compression
 
 ```bash
-npx tsx src/cli.ts dream          # Auto-compress when needed
-npx tsx src/cli.ts dream --force  # Force compression
+mythos dream          # Auto-compress when needed
+mythos dream --force  # Force compression
 ```
 
 When `MEMORY.md` exceeds 100 entries, older logs are compressed into a summary block using Claude (low effort, minimal token burn). Recent entries are preserved intact.
