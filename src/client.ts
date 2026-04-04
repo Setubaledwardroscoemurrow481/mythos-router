@@ -12,6 +12,19 @@ import {
 } from './config.js';
 import { c } from './utils.js';
 
+// ── Stream delta types (SDK doesn't export narrow types) ─────
+interface ThinkingDelta {
+  type: 'thinking_delta';
+  thinking: string;
+}
+
+interface TextDelta {
+  type: 'text_delta';
+  text: string;
+}
+
+type ContentDelta = ThinkingDelta | TextDelta;
+
 // ── Types ────────────────────────────────────────────────────
 export interface Message {
   role: 'user' | 'assistant';
@@ -36,6 +49,23 @@ export function getClient(): Anthropic {
   return _client;
 }
 
+// ── Input Validation ─────────────────────────────────────────
+function sanitizeMessages(messages: Message[]): Message[] {
+  return messages.map((m, i) => {
+    if (m.role !== 'user' && m.role !== 'assistant') {
+      throw new Error(`Invalid role at message[${i}]: ${String(m.role)}`);
+    }
+    if (typeof m.content !== 'string') {
+      throw new Error(`Message[${i}] content must be a string`);
+    }
+    const trimmed = m.content.trim();
+    if (trimmed.length === 0) {
+      throw new Error(`Empty message content at message[${i}]`);
+    }
+    return { role: m.role, content: trimmed };
+  });
+}
+
 // ── Streaming Message ────────────────────────────────────────
 export async function streamMessage(
   messages: Message[],
@@ -44,38 +74,43 @@ export async function streamMessage(
   onTextDelta?: (text: string) => void,
 ): Promise<MythosResponse> {
   const client = getClient();
-
-  const apiMessages = messages.map((m) => ({
-    role: m.role as 'user' | 'assistant',
-    content: m.content,
-  }));
+  const apiMessages = sanitizeMessages(messages);
 
   let thinkingText = '';
   let responseText = '';
   let inputTokens = 0;
   let outputTokens = 0;
 
-  const stream = await client.messages.stream({
-    model: MODEL_ID,
-    max_tokens: 16384,
-    thinking: { type: 'adaptive' },
-    output_config: { effort },
-    system: CAPYBARA_SYSTEM_PROMPT,
-    messages: apiMessages,
-  });
+  let stream;
+  try {
+    stream = await client.messages.stream({
+      model: MODEL_ID,
+      max_tokens: 16384,
+      thinking: { type: 'adaptive' },
+      output_config: { effort },
+      system: CAPYBARA_SYSTEM_PROMPT,
+      messages: apiMessages,
+    });
+  } catch (err) {
+    throw new Error(`Failed to start stream: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
-  for await (const event of stream) {
-    if (event.type === 'content_block_delta') {
-      const delta = event.delta as any;
+  try {
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta') {
+        const delta = event.delta as ContentDelta;
 
-      if (delta.type === 'thinking_delta') {
-        thinkingText += delta.thinking;
-        onThinkingDelta?.(delta.thinking);
-      } else if (delta.type === 'text_delta') {
-        responseText += delta.text;
-        onTextDelta?.(delta.text);
+        if (delta.type === 'thinking_delta') {
+          thinkingText += delta.thinking;
+          onThinkingDelta?.(delta.thinking);
+        } else if (delta.type === 'text_delta') {
+          responseText += delta.text;
+          onTextDelta?.(delta.text);
+        }
       }
     }
+  } catch (err) {
+    throw new Error(`Stream interrupted: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const finalMessage = await stream.finalMessage();
@@ -97,27 +132,29 @@ export async function sendMessage(
   systemOverride?: string,
 ): Promise<MythosResponse> {
   const client = getClient();
+  const apiMessages = sanitizeMessages(messages);
 
-  const apiMessages = messages.map((m) => ({
-    role: m.role as 'user' | 'assistant',
-    content: m.content,
-  }));
-
-  const response = await client.messages.create({
-    model: MODEL_ID,
-    max_tokens: 8192,
-    thinking: { type: 'adaptive' },
-    output_config: { effort },
-    system: systemOverride ?? CAPYBARA_SYSTEM_PROMPT,
-    messages: apiMessages,
-  });
+  let response;
+  try {
+    response = await client.messages.create({
+      model: MODEL_ID,
+      max_tokens: 8192,
+      thinking: { type: 'adaptive' },
+      output_config: { effort },
+      system: systemOverride ?? CAPYBARA_SYSTEM_PROMPT,
+      messages: apiMessages,
+    });
+  } catch (err) {
+    throw new Error(`API request failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   let thinkingText = '';
   let responseText = '';
 
   for (const block of response.content) {
     if (block.type === 'thinking') {
-      thinkingText += (block as any).thinking ?? '';
+      const thinkingBlock = block as { type: 'thinking'; thinking: string };
+      thinkingText += thinkingBlock.thinking ?? '';
     } else if (block.type === 'text') {
       responseText += block.text;
     }
