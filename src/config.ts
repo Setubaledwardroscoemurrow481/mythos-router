@@ -24,7 +24,7 @@ export const BUDGET_WARN_PERCENT = 80;
 export const COST_PER_INPUT_TOKEN  = 15   / 1_000_000; // $15.00 / 1M input tokens
 export const COST_PER_OUTPUT_TOKEN = 75   / 1_000_000; // $75.00 / 1M output tokens
 
-export const DEFAULT_IGNORE_PATTERNS = [
+export const DEFAULT_IGNORE_PATTERNS = Object.freeze([
   'node_modules',
   '.git',
   'dist',
@@ -34,7 +34,7 @@ export const DEFAULT_IGNORE_PATTERNS = [
   '*.lock',
   'package-lock.json',
   'MEMORY.md',
-];
+]);
 
 // ── The Leaked "Capybara" System Prompt ──────────────────────
 export const CAPYBARA_SYSTEM_PROMPT = `\
@@ -97,7 +97,7 @@ export function getEffort(flag?: string): EffortLevel {
 // ── Validation ───────────────────────────────────────────────
 export function validateApiKey(): string {
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
+  if (!key || typeof key !== 'string') {
     console.error(
       '\x1b[91m✖ ANTHROPIC_API_KEY not set.\x1b[0m\n' +
         '  Set it:  export ANTHROPIC_API_KEY="sk-ant-..."\n' +
@@ -105,5 +105,14 @@ export function validateApiKey(): string {
     );
     process.exit(1);
   }
-  return key;
+
+  if (!key.startsWith('sk-ant-')) {
+    console.error(
+      '\x1b[91m✖ Invalid ANTHROPIC_API_KEY format.\x1b[0m\n' +
+        '  Expected prefix: sk-ant-...\n'
+    );
+    process.exit(1);
+  }
+
+  return key.trim();
 }
