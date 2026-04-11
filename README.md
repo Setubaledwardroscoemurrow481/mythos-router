@@ -306,12 +306,46 @@ Token counts, estimated cost, and budget status are displayed after every chat r
 
 ---
 
+## Execution Model
+
+1. User input is received in CLI
+2. LLM generates response with structured file operations
+3. File system snapshot is captured
+4. Proposed changes are validated against actual filesystem state
+5. Verified actions are applied and logged to `MEMORY.md`
+6. Drift or mismatches trigger correction handling
+
+---
+
+## MEMORY.md
+
+`MEMORY.md` acts as a persistent execution log of the agent system.
+
+It records:
+- executed file operations
+- session summaries
+- verification results
+
+It can optionally be committed to version control for collaborative AI-assisted development.
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | API key for Anthropic models |
+
+---
+
 ## License
 
 MIT
 
 ---
 
-<div align="center">
-<sub>Built with the leaked Capybara protocol. No affiliation with Anthropic. Use responsibly.</sub>
-</div>
+## Disclaimer
+
+This project is an independent open-source tool built on top of the Anthropic API. It is not affiliated with or endorsed by Anthropic.
+
+<div align="center"><sub>Built for structured AI agent workflows with verifiable execution.</sub></div>
