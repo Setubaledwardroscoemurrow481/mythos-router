@@ -291,22 +291,6 @@ export function prescanPaths(modelOutput: string): string[] {
   return actions.map((a) => resolve(a.path));
 }
 
-// ── Quick git-status style check for unexpected changes ──────
-export function detectUnexpectedChanges(
-  beforeAll: Map<string, FileSnapshot>,
-  claimedPaths: Set<string>,
-): string[] {
-  const unexpected: string[] = [];
-  for (const [path, before] of beforeAll) {
-    if (claimedPaths.has(path)) continue;
-    const after = snapshotFile(path);
-    if (after.hash !== before.hash || after.exists !== before.exists) {
-      unexpected.push(path);
-    }
-  }
-  return unexpected;
-}
-
 // ── Dry-Run SWD — Preview actions with interactive approval ──
 export async function dryRunSWD(modelOutput: string): Promise<DryRunResult> {
   const actions = parseFileActions(modelOutput);
