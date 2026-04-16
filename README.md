@@ -9,14 +9,14 @@
     ╚═╝     ╚═╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝
 </pre>
 
-### Capybara Tier · Claude Opus 4.6 · Strict Write Discipline
+### Capybara Tier · Claude Opus 4.7 · Strict Write Discipline
 
 **The leaked Anthropic reasoning protocol. Running locally.**
 
 [![npm](https://img.shields.io/npm/v/mythos-router?style=flat-square&color=cc785c)](https://www.npmjs.com/package/mythos-router)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![Claude](https://img.shields.io/badge/Claude-Opus_4.6-cc785c?style=flat-square)](https://anthropic.com)
+[![Claude](https://img.shields.io/badge/Claude-Opus_4.7-cc785c?style=flat-square)](https://anthropic.com)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/thewaltero/mythos-router?style=social)](https://github.com/thewaltero/mythos-router)
 
@@ -47,7 +47,7 @@ Zero slop. Zero hallucinated state. Full adaptive thinking.
 
 | Feature | Description |
 |---------|-------------|
-| 🧠 **Adaptive Thinking** | Opus 4.6 with configurable effort levels (high/medium/low) |
+| 🧠 **Adaptive Thinking** | Opus 4.7 with configurable effort levels (high/medium/low) |
 | 🔒 **Strict Write Discipline** | Pre/post filesystem snapshots verify every model claim |
 | 💤 **Self-Healing Memory** | `MEMORY.md` logs every action; auto-compresses via "Dream" |
 | ⟲ **Correction Turns** | Model gets 2 retries to match filesystem reality, then yields |
@@ -208,7 +208,7 @@ User Input
 [Pre-Snapshot] ── filesystem state captured
     │
     ▼
-[Claude Opus 4.6] ── adaptive thinking (high effort)
+[Claude Opus 4.7] ── adaptive thinking (high effort)
     │
     ▼
 [Parse FILE_ACTION blocks] ── extract claimed operations
@@ -267,18 +267,27 @@ The model is instructed to emit machine-readable delimiters around every file op
 
 ## Token Usage & Budget
 
-### Opus 4.6 Pricing (as of 2026-04)
+### Opus 4.7 Pricing (as of 2026-04)
 
 | Rate | USD |
 |------|-----|
 | Input tokens | $15.00 / 1M tokens |
 | Output tokens | $75.00 / 1M tokens |
 
+> **⚠️ Tokenizer Cost Inflation Alert**
+> While the per-token price remains identical to Opus 4.6, **Opus 4.7 uses a new tokenizer that is significantly less efficient for Latin scripts**. 
+> - English prompts require **~59% more tokens** (85 → 135 tokens per paragraph).
+> - French requires **~34% more tokens**.
+> - Mixed multilingual codebases effectively cost **~22% more**.
+> - CJK languages (Chinese/Japanese/Korean) and code (Python) see smaller regressions (+4-21%).
+> 
+> *Bottom line: Expect your English-heavy mythos-router sessions to cost up to 59% more with Opus 4.7 than they did with 4.6, simply due to tokenizer changes.*
+
 > Pricing constants live in `src/config.ts`. When Anthropic updates rates, change two lines — no budget math to refactor.
 
 | Mode | Typical Cost Per Turn |
 |------|----------------------|
-| `--effort high` | Full Opus 4.6 pricing (deep reasoning) |
+| `--effort high` | Full Opus 4.7 pricing (deep reasoning) |
 | `--effort medium` | Balanced — good for most tasks |
 | `--effort low` | Minimal thinking — quick answers |
 | `dream` | Low effort summarization (~500 tokens) |
