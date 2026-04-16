@@ -89,7 +89,6 @@ mythos-router is an AI power tool, so AI-assisted contributions are welcome — 
 - **Focused scope** — One logical change per PR, not a kitchen-sink refactor
 - **Evidence of verification** — Show that you tested the change (terminal output, verify results)
 - **Respect existing patterns** — Read `AGENTS.md` and match the code style already in use
-- **No slop** — No placeholder comments, no `// TODO: implement later`, no half-finished code
 
 ### What Gets Rejected
 
