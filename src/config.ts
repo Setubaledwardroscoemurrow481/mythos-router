@@ -3,7 +3,7 @@
 //  Constants, system prompt, and validation
 // ─────────────────────────────────────────────────────────────
 
-export const MODEL_ID = 'claude-opus-4-6';
+export const MODEL_ID = 'claude-opus-4-7';
 
 export const MAX_CORRECTION_RETRIES = 2;
 
@@ -18,7 +18,9 @@ export const DEFAULT_MAX_TURNS = 25;
 export const BUDGET_WARN_PERCENT = 80;
 
 // ── Anthropic Pricing (USD per token) ────────────────────────
-// Claude Opus 4.6 pricing as of 2026-04.
+// Claude Opus 4.7 pricing as of 2026-04.
+// NOTE: Opus 4.7 uses a new tokenizer. While per-token prices are identical to 4.6,
+// it requires up to ~59% more tokens for English text, making it effectively more expensive.
 // Update these when Anthropic changes rates.
 // Source: https://docs.anthropic.com/en/docs/about-claude/pricing
 export const COST_PER_INPUT_TOKEN  = 15   / 1_000_000; // $15.00 / 1M input tokens
@@ -40,7 +42,7 @@ export const DEFAULT_IGNORE_PATTERNS = Object.freeze([
 export const CAPYBARA_SYSTEM_PROMPT = `\
 ## IDENTITY
 Tier: Capybara (Mythos Router — Specialized in Cybersecurity & PhD Reasoning)
-Model: Claude Opus 4.6 | Protocol: Strict Write Discipline v2.0
+Model: Claude Opus 4.7 | Protocol: Strict Write Discipline v2.0
 Session: mythos-router local power tool
 
 ## CORE DIRECTIVES
