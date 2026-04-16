@@ -18,7 +18,7 @@ const program = new Command();
 program
   .name('mythos')
   .description(
-    'Capybara-tier CLI router — Claude Opus 4.6 with Adaptive Thinking, ' +
+    'Capybara-tier CLI router — Claude Opus 4.7 with Adaptive Thinking, ' +
       'Strict Write Discipline, and Self-Healing Memory.',
   )
   .version('1.1.0');
