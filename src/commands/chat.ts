@@ -1,9 +1,3 @@
-// ─────────────────────────────────────────────────────────────
-//  mythos-router :: commands/chat.ts
-//  Interactive REPL with Capybara thinking protocol
-//  + Budget Limiter + Dry-Run + Verbose modes
-// ─────────────────────────────────────────────────────────────
-
 import * as readline from 'node:readline';
 import { resolve } from 'node:path';
 import { readdirSync } from 'node:fs';
@@ -31,7 +25,7 @@ import {
   type EffortLevel,
   MAX_CORRECTION_RETRIES,
   BUDGET_WARN_PERCENT,
-  MODEL_ID,
+  MODELS,
   DEFAULT_IGNORE_PATTERNS,
 } from '../config.js';
 import { c, Spinner, BANNER, hr, heading, dryRunBadge, verboseBadge } from '../utils.js';
@@ -69,7 +63,7 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
   // Mode badges
   const modes: string[] = [];
   modes.push(`${c.dim}effort: ${c.cyan}${effort}${c.reset}`);
-  modes.push(`${c.dim}model: ${c.cyan}${MODEL_ID}${c.reset}`);
+  modes.push(`${c.dim}model: ${c.cyan}${MODELS[effort]}${c.reset}`);
   modes.push(`${c.dim}swd: ${c.green}active${c.reset}`);
   if (dryRun) modes.push(dryRunBadge());
   if (verbose) modes.push(verboseBadge());
