@@ -1,11 +1,6 @@
-// ─────────────────────────────────────────────────────────────
-//  mythos-router :: client.ts
-//  Anthropic SDK client with adaptive thinking
-// ─────────────────────────────────────────────────────────────
-
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  MODEL_ID,
+  MODELS,
   CAPYBARA_SYSTEM_PROMPT,
   validateApiKey,
   type EffortLevel,
@@ -84,7 +79,7 @@ export async function streamMessage(
   let stream;
   try {
     stream = await client.messages.stream({
-      model: MODEL_ID,
+      model: MODELS[effort],
       max_tokens: 16384,
       thinking: { type: 'adaptive' },
       output_config: { effort },
@@ -137,7 +132,7 @@ export async function sendMessage(
   let response;
   try {
     response = await client.messages.create({
-      model: MODEL_ID,
+      model: MODELS[effort],
       max_tokens: 8192,
       thinking: { type: 'adaptive' },
       output_config: { effort },
