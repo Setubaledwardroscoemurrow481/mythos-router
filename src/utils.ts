@@ -52,25 +52,28 @@ const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', 
 export class Spinner {
   private interval: ReturnType<typeof setInterval> | null = null;
   private frameIdx = 0;
+  private currentMessage = '';
 
   start(message: string) {
+    this.currentMessage = message;
     this.frameIdx = 0;
     process.stdout.write('\x1b[?25l'); // hide cursor
     this.interval = setInterval(() => {
       const frame = SPINNER_FRAMES[this.frameIdx % SPINNER_FRAMES.length]!;
       process.stdout.write(
-        `\r${c.cyan}${frame}${c.reset} ${c.dim}${message}${c.reset}`
+        `\r\x1b[K${c.cyan}${frame}${c.reset} ${c.dim}${this.currentMessage}${c.reset}`
       );
       this.frameIdx++;
     }, 80);
   }
 
   update(message: string) {
-    // Just changes what the next tick will display
-    if (this.interval) {
-      clearInterval(this.interval);
-      this.start(message);
-    }
+    this.currentMessage = message;
+    // Force an immediate render so it feels responsive
+    const frame = SPINNER_FRAMES[this.frameIdx % SPINNER_FRAMES.length]!;
+    process.stdout.write(
+      `\r\x1b[K${c.cyan}${frame}${c.reset} ${c.dim}${this.currentMessage}${c.reset}`
+    );
   }
 
   stop(finalMessage?: string) {
