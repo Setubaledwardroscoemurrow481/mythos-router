@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, unlinkSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, unlinkSync, mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   parseFileActions,
@@ -317,5 +317,87 @@ describe('runSWD', () => {
     const result = runSWD('Just a normal response.', new Map());
     assert.equal(result.verified, true);
     assert.equal(result.actions.length, 0);
+  });
+
+  it('performs atomic rollbacks on failed verification', () => {
+    const testDir = join(process.cwd(), 'test', '.tmp-swd-rollback');
+    mkdirSync(testDir, { recursive: true });
+    
+    // Create pre-existing file state
+    const file1Path = join(testDir, 'file1.txt');
+    const file2Path = join(testDir, 'file2.txt');
+    writeFileSync(file1Path, 'original file 1', 'utf-8');
+    writeFileSync(file2Path, 'original file 2', 'utf-8');
+
+    // Simulate taking the "before" snapshot
+    const beforeSnapshots = snapshotFiles([file1Path, file2Path]);
+
+    // Simulate "agent or user" modifying the files during the turn
+    writeFileSync(file1Path, 'modified file 1', 'utf-8'); // Drift
+    writeFileSync(file2Path, 'modified file 2', 'utf-8'); // Will fail because size/hash mismatch for say file 2
+
+    // Provide model output that triggers runSWD
+    const output = `
+[FILE_ACTION: ${file1Path}]
+OPERATION: MODIFY
+DESCRIPTION: Modify 1
+[/FILE_ACTION]
+
+[FILE_ACTION: ${file2Path}]
+OPERATION: MODIFY
+CONTENT_HASH: badhash123
+DESCRIPTION: Modify 2
+[/FILE_ACTION]
+`;
+
+    // runSWD should fail verification because file2 has badhash123,
+    // and both file1 and file2 should be rolled back to "original"
+    const result = runSWD(output, beforeSnapshots);
+
+    assert.equal(result.verified, false);
+    assert.equal(result.rollbacks?.length, 2, 'Should have rolled back both files');
+
+    // Read files back to ensure they were restored
+    const f1 = readFileSync(file1Path, 'utf-8');
+    const f2 = readFileSync(file2Path, 'utf-8');
+
+    assert.equal(f1, 'original file 1');
+    assert.equal(f2, 'original file 2');
+
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it('rolls back newly created hallucinated files', () => {
+    const testDir = join(process.cwd(), 'test', '.tmp-swd-rollback-new');
+    mkdirSync(testDir, { recursive: true });
+    
+    const newFilePath = join(testDir, 'newfile.txt');
+
+    // Simulate taking the "before" snapshot (does not exist)
+    const beforeSnapshots = snapshotFiles([newFilePath]);
+
+    // Simulate "agent or user" creating the file during the turn
+    writeFileSync(newFilePath, 'new hallucinated file', 'utf-8');
+
+    // Provide model output
+    const output = `
+[FILE_ACTION: ${newFilePath}]
+OPERATION: CREATE
+CONTENT_HASH: badhash123
+DESCRIPTION: Create new
+[/FILE_ACTION]
+`;
+
+    // runSWD should fail verification and rollback the new file by deleting it
+    const result = runSWD(output, beforeSnapshots);
+
+    assert.equal(result.verified, false);
+    assert.equal(result.rollbacks?.length, 1);
+
+    // Read files back to ensure it was deleted
+    const exists = existsSync(newFilePath);
+    assert.equal(exists, false, 'File should have been deleted during rollback');
+
+    rmSync(testDir, { recursive: true, force: true });
   });
 });
