@@ -187,6 +187,7 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
     spinner.start('Capybara is thinking...');
     let thinkingStarted = false;
     let streamStarted = false;
+    let thinkingTokens = 0;
 
     try {
       const response = await streamMessage(
@@ -195,26 +196,30 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
         // onThinkingDelta
         (delta) => {
           if (!thinkingStarted) {
-            spinner.stop();
-            process.stdout.write(`\n${c.dim}${c.italic}💭 `);
+            if (verbose) {
+              spinner.stop();
+              process.stdout.write(`\n${c.dim}${c.italic}💭 `);
+            }
             thinkingStarted = true;
           }
           if (verbose) {
             // Full thinking output in verbose mode
             process.stdout.write(`${c.dim}${delta}`);
           } else {
-            // Condensed thinking in normal mode
-            const condensed = delta.replace(/\n/g, ' ').slice(0, 200);
-            process.stdout.write(`${c.dim}${condensed}`);
+            thinkingTokens += Math.ceil(delta.length / 4);
+            spinner.update(`Thinking (${MODELS[effort]})... ${c.yellow}~${thinkingTokens} tokens${c.reset}`);
           }
         },
         // onTextDelta
         (delta) => {
           if (!streamStarted) {
-            if (thinkingStarted) {
+            if (thinkingStarted && verbose) {
               process.stdout.write(`${c.reset}\n\n`);
             } else {
-              spinner.stop();
+              const msg = thinkingTokens > 0 
+                ? `${c.green}✔${c.reset} ${c.dim}Thought process complete (~${thinkingTokens} tokens)${c.reset}`
+                : `${c.green}✔${c.reset} ${c.dim}Ready${c.reset}`;
+              spinner.stop(msg);
               process.stdout.write('\n');
             }
             streamStarted = true;
@@ -259,12 +264,16 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
           );
         }
       } else {
+        spinner.start('Parsing FILE_ACTION blocks...');
         // Lazy snapshot: only snapshot files referenced in FILE_ACTION blocks
         const referencedPaths = extractReferencedPaths(response.text);
+        
+        spinner.update('Verifying Strict Write Discipline...');
         const beforeSnapshots = snapshotFiles(referencedPaths);
 
         // Normal mode: verify against filesystem
         const swdResult = runSWD(response.text, beforeSnapshots);
+        spinner.stop();
         printSWDResults(swdResult);
 
         // Correction loop
@@ -348,14 +357,23 @@ async function correctionLoop(
     history.push({ role: 'user', content: correctionPrompt });
 
     spinner.start(`Correction attempt ${attempt}...`);
+    let thinkingTokens = 0;
+    let streamStarted = false;
 
     try {
       const correctionResponse = await streamMessage(
         history,
         effort,
-        undefined,
         (delta) => {
-          if (spinner) spinner.stop();
+          thinkingTokens += Math.ceil(delta.length / 4);
+          spinner.update(`Correction attempt ${attempt}... ${c.yellow}~${thinkingTokens} tokens${c.reset}`);
+        },
+        (delta) => {
+          if (!streamStarted) {
+            spinner.stop(`${c.green}✔${c.reset} ${c.dim}Correction thought process complete${c.reset}`);
+            process.stdout.write('\n');
+            streamStarted = true;
+          }
           process.stdout.write(delta);
         },
       );
@@ -369,7 +387,9 @@ async function correctionLoop(
       // Record budget for correction turn
       budget.record(correctionResponse.inputTokens, correctionResponse.outputTokens);
 
+      spinner.start('Running SWD Verification...');
       const swdResult = runSWD(correctionResponse.text, initialSnapshots);
+      spinner.stop();
       printSWDResults(swdResult);
 
       if (swdResult.verified) {
