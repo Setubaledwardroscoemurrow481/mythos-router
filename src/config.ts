@@ -1,3 +1,8 @@
+// ─────────────────────────────────────────────────────────────
+//  mythos-router :: config.ts
+//  Constants, system prompt, and validation
+// ─────────────────────────────────────────────────────────────
+
 export const MODELS: Record<string, string> = {
   high: 'claude-opus-4-7',
   medium: 'claude-sonnet-3-5',
@@ -89,9 +94,16 @@ DESCRIPTION: <one-line description of what changed>
 // ── Effort levels ────────────────────────────────────────────
 export type EffortLevel = 'high' | 'medium' | 'low';
 
+const VALID_EFFORTS = new Set(['high', 'h', 'medium', 'med', 'm', 'low', 'l']);
+
 export function getEffort(flag?: string): EffortLevel {
   if (flag === 'low' || flag === 'l') return 'low';
   if (flag === 'medium' || flag === 'med' || flag === 'm') return 'medium';
+  if (flag && !VALID_EFFORTS.has(flag)) {
+    console.warn(
+      `\x1b[93m⚠ Unknown effort level "${flag}". Valid: high, medium, low. Defaulting to high.\x1b[0m`,
+    );
+  }
   return 'high'; // default: full capybara mode
 }
 
