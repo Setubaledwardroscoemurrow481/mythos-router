@@ -21,7 +21,7 @@ program
     'Capybara-tier CLI router — Claude Opus 4.7 with Adaptive Thinking, ' +
       'Strict Write Discipline, and Self-Healing Memory.',
   )
-  .version('1.1.0');
+  .version('1.1.4');
 
 // ── mythos chat ──────────────────────────────────────────────
 program
