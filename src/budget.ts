@@ -10,7 +10,7 @@ import {
   COST_PER_INPUT_TOKEN,
   COST_PER_OUTPUT_TOKEN,
 } from './config.js';
-import { c } from './utils.js';
+import { c, progressBar } from './utils.js';
 
 // ── Types ────────────────────────────────────────────────────
 export interface BudgetConfig {
@@ -216,12 +216,8 @@ export class SessionBudget {
   }
 }
 
-// ── Progress Bar Helper ──────────────────────────────────────
-function progressBar(percent: number, width: number): string {
-  const filled = Math.round((percent / 100) * width);
-  const empty = width - filled;
-  return `[${`█`.repeat(filled)}${`░`.repeat(empty)}]`;
-}
+
+
 
 // ── Elapsed Time Formatter ───────────────────────────────────
 function formatElapsed(ms: number): string {
