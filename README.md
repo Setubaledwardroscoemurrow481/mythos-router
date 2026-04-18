@@ -11,8 +11,7 @@
 
 ### Capybara Tier · Claude Opus 4.7 · Strict Write Discipline
 
-**The leaked Anthropic reasoning protocol. Running locally.**<br>
-**Support the project. CA: 0xb942b75a602fa318ac091370d93d9143ba345ba3 ($MYTHOS Base Token)**
+**The leaked Anthropic reasoning protocol. Running locally.**
 
 [![npm](https://img.shields.io/npm/v/mythos-router?style=flat-square&color=cc785c)](https://www.npmjs.com/package/mythos-router)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
@@ -121,7 +120,7 @@ mythos chat --verbose        # See full SWD traces and thinking
 mythos chat --dry-run --verbose  # Maximum transparency
 ```
 
-#### 💰 Financial Safety — Never Burn Money Again
+####  Financial Safety — Never Burn Money Again
 
 ```bash
 mythos chat                           # Default: 500K tokens, 25 turns
@@ -139,7 +138,7 @@ budget: [████████░░░░░░░░░░░░] 78,342/50
 
 At 80%, you get a yellow warning. At 100%, the session performs a **graceful save** — current progress is written to `MEMORY.md` so you can resume context in your next session. No work lost. Use `--no-budget` to disable (at your own risk).
 
-#### 🔍 Dry-Run Mode — The Trust Builder
+####  Dry-Run Mode — The Trust Builder
 
 ```bash
 mythos chat --dry-run
@@ -191,6 +190,29 @@ mythos dream --dry-run    # Preview without writing
 ```
 
 When `MEMORY.md` exceeds 100 entries, older logs are compressed into a summary block using Claude (low effort, minimal token burn). Recent entries are preserved intact.
+
+### 🔌 SDK Usage (For Agentic Systems)
+
+`mythos-router` is not just a CLI—it is a programmable execution layer natively exposing its Strict Write Discipline and Multi-Model Router to other AI developers.
+
+```typescript
+import { runSWD, snapshotFiles } from 'mythos-router';
+
+// 1. Snapshot the target directory before your agent executes
+const beforeState = snapshotFiles(['./src/components']);
+
+// 2. Let your agent generate code (must output [FILE_ACTION] blocks)
+const agentOutput = await myAgent.generateCode(); 
+
+// 3. Route through the Strict Write Discipline engine
+const result = runSWD(agentOutput, beforeState);
+
+if (result.verified) {
+  console.log('✅ Agent execution verified securely');
+} else {
+  console.log('❌ Agent hallucinated a write. Stopping execution.');
+}
+```
 
 ---
 
@@ -290,7 +312,7 @@ The model is instructed to emit machine-readable delimiters around every file op
 | Input tokens | $15.00 / 1M tokens |
 | Output tokens | $75.00 / 1M tokens |
 
-> **⚠️ Tokenizer Cost Inflation Alert**
+> ** Tokenizer Cost Inflation Alert**
 > While the per-token price remains identical to Opus 4.6, **Opus 4.7 uses a new tokenizer that is significantly less efficient for Latin scripts**. 
 > - English prompts require **~59% more tokens** (85 → 135 tokens per paragraph).
 > - French requires **~34% more tokens**.
