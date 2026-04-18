@@ -19,9 +19,9 @@ program
   .name('mythos')
   .description(
     'Capybara-tier CLI router — Claude Opus 4.7 with Adaptive Thinking, ' +
-      'Strict Write Discipline, and Self-Healing Memory.',
+    'Strict Write Discipline, and Self-Healing Memory.',
   )
-  .version('1.1.4');
+  .version('1.1.6');
 
 // ── mythos chat ──────────────────────────────────────────────
 program
