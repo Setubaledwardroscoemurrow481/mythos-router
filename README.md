@@ -48,15 +48,30 @@ Zero slop. Zero hallucinated state. Full adaptive thinking.
 
 | Feature | Description |
 |---------|-------------|
-| 🧠 **Adaptive Thinking** | Opus 4.7 with configurable effort levels (high/medium/low) |
-| 🔒 **Strict Write Discipline** | Pre/post filesystem snapshots verify every model claim |
-| 💤 **Self-Healing Memory** | `MEMORY.md` logs every action; auto-compresses via "Dream" |
-| ⟲ **Correction Turns** | Model gets 2 retries to match filesystem reality, then yields |
-| 📋 **Drift Detection** | `verify` command syncs codebase state with memory |
-| 💰 **Token Limiter** | Budget cap with graceful save — progress saved to MEMORY.md, never lose work |
-| 🔍 **Dry-Run Mode** | Preview every file operation before it executes — full transparency |
-| 📊 **Verbose Tracing** | See exactly what the AI is parsing, thinking, and verifying |
-| 🚀 **Zero Build** | Runs directly via `tsx` — no compile step in dev |
+|  **Adaptive Thinking** | Opus 4.7 with configurable effort levels (high/medium/low) |
+|  **Strict Write Discipline** | Pre/post filesystem snapshots verify every model claim |
+|  **Self-Healing Memory** | `MEMORY.md` logs every action; auto-compresses via "Dream" |
+|  **Correction Turns** | Model gets 2 retries to match filesystem reality, then yields |
+|  **Drift Detection** | `verify` command syncs codebase state with memory |
+|  **Token Limiter** | Budget cap with graceful save — progress saved to MEMORY.md, never lose work |
+|  **Dry-Run Mode** | Preview every file operation before it executes — full transparency |
+|  **Verbose Tracing** | See exactly what the AI is parsing, thinking, and verifying |
+|  **Zero Build** | Runs directly via `tsx` — no compile step in dev |
+
+---
+
+## Core Architectural Pillars
+
+### 1. Multi-Model Orchestration
+Most AI tools slam one expensive model with every request, draining API budgets instantly. Mythos Router acts as a true orchestrator, dynamically routing sub-tasks to specialized models based on effort level:
+-  **The Thinker (`Opus 4.7`)**: Handles high-effort architecture, reasoning, and system planning.
+-  **The Writer (`Sonnet 3.5`)**: Receives localized plans to execute rapid, flawless code generation.
+-  **The Validator (`Haiku 3`)**: Executes rapid background verify and drift detection tasks.
+*Result: PhD-level reasoning at 1/5th the API cost.*
+
+### 2. Automated "Dream" Summarization & The Original Sin
+Even with massive 200k+ context windows, models suffer from degradation ("lost in the middle") when packed with massive raw chat history. 
+The router tracks this using `MEMORY.md`. As memory approaches capacity, the router delegates a compression phase (the "Dream") to a low-cost model (`Haiku 3`). It condenses transaction logs into tight summaries while forever preserving the **"Original Sin"** of the project—the core architectural decisions and constraints. This prevents AI drift and saves massive API costs on every subsequent turn.
 
 ---
 
