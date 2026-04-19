@@ -8,10 +8,17 @@
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/thewaltero/mythos-router?style=social)](https://github.com/thewaltero/mythos-router)
 
-## Claude Opus 4.7 · Strict Write Discipline · Zero Slop <br>A local CLI power tool for verifiable AI-assisted coding.
 
-### Support the project. CA: 0xb942b75a602fa318ac091370d93d9143ba345ba3 ([$MYTHOS](https://app.uniswap.org/swap?outputCurrency=0xb942b75a602fa318ac091370d93d9143ba345ba3&chain=base) Token)<br>
-#
+## Claude Opus 4.7 · Strict Write Discipline · Zero Slop
+**A local CLI power tool for verifiable AI-assisted coding.**
+
+---
+
+### Support the project
+**CA: `0xb942b75a602fa318ac091370d93d9143ba345ba3` ([$MYTHOS Token](https://app.uniswap.org/swap?outputCurrency=0xb942b75a602fa318ac091370d93d9143ba345ba3&chain=base))**
+
+---
+
 
 <p align="center">
   <img src="assets/demo.png" alt="mythos-router terminal demo" width="700" />
