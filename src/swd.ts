@@ -36,6 +36,7 @@ export interface FileAction {
   operation: 'CREATE' | 'MODIFY' | 'DELETE' | 'READ';
   contentHash?: string;
   description: string;
+  content?: string;
 }
 
 export interface SWDResult {
@@ -94,7 +95,7 @@ export function snapshotFiles(paths: string[]): Map<string, FileSnapshot> {
 export function parseFileActions(output: string): FileAction[] {
   const actions: FileAction[] = [];
   const regex =
-    /\[FILE_ACTION:\s*(.+?)\]\s*\n\s*OPERATION:\s*(CREATE|MODIFY|DELETE|READ)\s*\n(?:\s*CONTENT_HASH:\s*(\S+)\s*\n)?\s*DESCRIPTION:\s*(.+?)\s*\n\s*\[\/FILE_ACTION\]/gi;
+    /\[FILE_ACTION:\s*(.+?)\]\s*\n\s*OPERATION:\s*(CREATE|MODIFY|DELETE|READ)\s*\n(?:\s*CONTENT_HASH:\s*(\S+)\s*\n)?\s*DESCRIPTION:\s*(.+?)\s*\n(?:\s*CONTENT:\s*([\s\S]*?)\s*\n)?\s*\[\/FILE_ACTION\]/gi;
 
   let match;
   while ((match = regex.exec(output)) !== null) {
@@ -103,6 +104,7 @@ export function parseFileActions(output: string): FileAction[] {
       operation: match[2]!.trim().toUpperCase() as FileAction['operation'],
       contentHash: match[3]?.trim() || undefined,
       description: match[4]!.trim(),
+      content: match[5]?.trim() || undefined,
     });
   }
   return actions;
@@ -338,6 +340,8 @@ export function prescanPaths(modelOutput: string): string[] {
 }
 
 // ── Dry-Run SWD — Preview actions with interactive approval ──
+import { renderDiff } from './diff.js';
+
 export async function dryRunSWD(modelOutput: string): Promise<DryRunResult> {
   const actions = parseFileActions(modelOutput);
 
@@ -357,7 +361,7 @@ export async function dryRunSWD(modelOutput: string): Promise<DryRunResult> {
     const absPath = resolveSafePath(action.path);
     const snap = snapshotFile(absPath);
 
-    // Show action details
+    // Show action header
     const opColor = action.operation === 'DELETE' ? c.red :
                      action.operation === 'CREATE' ? c.green :
                      action.operation === 'MODIFY' ? c.yellow : c.cyan;
@@ -365,8 +369,14 @@ export async function dryRunSWD(modelOutput: string): Promise<DryRunResult> {
     console.log(`  ${c.bold}${i + 1}/${actions.length}${c.reset} ${opColor}${action.operation}${c.reset} ${c.cyan}${action.path}${c.reset}`);
     console.log(`  ${c.dim}Description: ${action.description}${c.reset}`);
 
-    // Show current file state
-    if (snap.exists) {
+    // Show Inline Diff if applicable
+    if (action.content && (action.operation === 'MODIFY' || action.operation === 'CREATE')) {
+      console.log(`\n  ${c.dim}── Inline Diff ──${c.reset}`);
+      const oldContent = snap.exists && snap.content ? snap.content.toString() : '';
+      const diffOutput = renderDiff(oldContent, action.content);
+      console.log(diffOutput);
+      console.log(`  ${c.dim}─────────────────${c.reset}\n`);
+    } else if (snap.exists) {
       console.log(`  ${c.dim}Current state: ${snap.size} bytes, hash: ${snap.hash.slice(0, 16)}…${c.reset}`);
     } else {
       console.log(`  ${c.dim}Current state: does not exist${c.reset}`);
