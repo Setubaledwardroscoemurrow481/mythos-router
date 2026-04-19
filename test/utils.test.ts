@@ -159,20 +159,25 @@ describe('Spinner', () => {
 
   it('starts and stops correctly', () => {
     const spinner = new Spinner();
-    spinner.start('Test msg');
-    assert.ok(stdoutData.some(d => d.includes('Test msg')));
-    
-    spinner.stop('Done');
+    try {
+      spinner.start('Test msg');
+      assert.ok(stdoutData.some(d => d.includes('Test msg')));
+    } finally {
+      spinner.stop('Done');
+    }
     assert.ok(stdoutData.some(d => d.includes('Done')));
   });
 
   it('updates the message keeping the spinner active', () => {
     const spinner = new Spinner();
-    spinner.start('Start msg');
-    spinner.update('Updated msg');
-    
-    // update should force a render immediately
-    assert.ok(stdoutData.some(d => d.includes('Updated msg')));
-    spinner.stop();
+    try {
+      spinner.start('Start msg');
+      spinner.update('Updated msg');
+      
+      // update should force a render immediately
+      assert.ok(stdoutData.some(d => d.includes('Updated msg')));
+    } finally {
+      spinner.stop();
+    }
   });
 });
