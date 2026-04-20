@@ -12,6 +12,7 @@ export const MODELS: Record<string, string> = {
 export const MAX_CORRECTION_RETRIES = 2;
 
 export const MEMORY_FILE = 'MEMORY.md';
+export const MEMORY_DB_FILE = 'memory.db';
 export const MEMORY_MAX_LINES = 100;
 
 export const MYTHOSIGNORE_FILE = '.mythosignore';
@@ -27,8 +28,8 @@ export const BUDGET_WARN_PERCENT = 80;
 // it requires up to ~59% more tokens for English text, making it effectively more expensive.
 // Update these when Anthropic changes rates.
 // Source: https://docs.anthropic.com/en/docs/about-claude/pricing
-export const COST_PER_INPUT_TOKEN  = 15   / 1_000_000; // $15.00 / 1M input tokens
-export const COST_PER_OUTPUT_TOKEN = 75   / 1_000_000; // $75.00 / 1M output tokens
+export const COST_PER_INPUT_TOKEN = 15 / 1_000_000; // $15.00 / 1M input tokens
+export const COST_PER_OUTPUT_TOKEN = 75 / 1_000_000; // $75.00 / 1M output tokens
 
 export const DEFAULT_IGNORE_PATTERNS = Object.freeze([
   'node_modules',
@@ -114,8 +115,8 @@ export function validateApiKey(): string {
   if (!key || typeof key !== 'string') {
     console.error(
       '\x1b[91m✖ ANTHROPIC_API_KEY not set.\x1b[0m\n' +
-        '  Set it:  export ANTHROPIC_API_KEY="sk-ant-..."\n' +
-        '  Or:      $env:ANTHROPIC_API_KEY = "sk-ant-..."\n'
+      '  Set it:  export ANTHROPIC_API_KEY="sk-ant-..."\n' +
+      '  Or:      $env:ANTHROPIC_API_KEY = "sk-ant-..."\n'
     );
     process.exit(1);
   }
@@ -123,7 +124,7 @@ export function validateApiKey(): string {
   if (!key.startsWith('sk-ant-')) {
     console.error(
       '\x1b[91m✖ Invalid ANTHROPIC_API_KEY format.\x1b[0m\n' +
-        '  Expected prefix: sk-ant-...\n'
+      '  Expected prefix: sk-ant-...\n'
     );
     process.exit(1);
   }
