@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.8] — 2026-04-20
+
+### Added
+- **Self-Healing Memory (V4)** — Re-architected memory system with a dual Authority/Derivative model. `MEMORY.md` remains the sole source of truth, backed by a rebuildable SQLite index.
+- **SQLite Derivative Index** — High-performance query acceleration layer using `node:sqlite`.
+- **FTS5 Smart Search** — Intelligent, ranked text retrieval via FTS5 virtual tables with `unicode61` tokenization.
+- **Integrity Signposting** — SHA-256 manifest hashing on startup ensuring zero drift between the authoritative log and the search index.
+- **Atomic Rebuilds** — Transactional reconstruction logic (`BEGIN/COMMIT`) to ensure index consistency even during hard crashes.
+
+### Changed
+- **O(1) Append Protocol** — Optimized logging to use `appendFileSync` for better performance and durability under load.
+- **Hardened Test Suite** — Expanded testing to verify SQLite initialization, FTS5 search ranking, and recovery logic.
+
+---
+
 ## [1.1.7] — 2026-04-19
 
 ### Added
@@ -90,6 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Correction Turns** — max 2 retries before yielding to human.
 - **Dream/Verify Commands** — memory compression and drift detection.
 
+[1.1.8]: https://github.com/thewaltero/mythos-router/releases/tag/v1.1.8
 [1.1.7]: https://github.com/thewaltero/mythos-router/releases/tag/v1.1.7
 [1.1.6]: https://github.com/thewaltero/mythos-router/releases/tag/v1.1.6
 [1.1.3]: https://github.com/thewaltero/mythos-router/releases/tag/v1.1.3
