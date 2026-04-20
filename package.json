@@ -25,7 +25,8 @@
     "start": "node dist/cli.js",
     "chat": "tsx src/cli.ts chat",
     "verify": "tsx src/cli.ts verify",
-    "dream": "tsx src/cli.ts dream"
+    "dream": "tsx src/cli.ts dream",
+    "rebuild": "tsx -e \"import { rebuildIndex } from './src/memory.js'; rebuildIndex();\""
   },
   "keywords": [
     "claude",
