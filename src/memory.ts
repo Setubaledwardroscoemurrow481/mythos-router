@@ -225,6 +225,29 @@ export function appendEntry(action: string, result: string, dryRun = false): voi
 }
 
 /**
+ * Appends a hidden metadata block to MEMORY.md for machine parsing.
+ */
+export function appendMetadataBlock(metadata: Record<string, string>, dryRun = false): void {
+  initMemory(dryRun);
+  const path = getMemoryPath();
+  
+  let block = '\n<!-- mythos:meta\n';
+  for (const [key, value] of Object.entries(metadata)) {
+    block += `${key}=${value}\n`;
+  }
+  block += '-->\n\n';
+
+  if (dryRun) {
+    console.log(`${dryRunBadge()} ${c.dim}Would append metadata block to MEMORY.md:${c.reset}`);
+    const preview = block.trim().split('\n').map(l => `  ${l}`).join('\n');
+    console.log(`${c.cyan}${preview}${c.reset}`);
+    return;
+  }
+
+  appendFileSync(path, block, 'utf-8');
+}
+
+/**
  * Surgical retrieval from the derivative SQLite index using FTS5.
  * Returns ranked results matching the query.
  */
