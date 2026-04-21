@@ -22,6 +22,7 @@ import {
 } from '../swd.js';
 import {
   appendEntry,
+  appendMetadataBlock,
   needsDream,
   printMemoryStatus,
   getMemoryContext,
@@ -32,8 +33,16 @@ import {
   BUDGET_WARN_PERCENT,
   MODELS,
 } from '../config.js';
-import { c, Spinner, BANNER, hr, heading, dryRunBadge, verboseBadge } from '../utils.js';
+import { c, Spinner, BANNER, hr, heading, dryRunBadge, verboseBadge, error as logError, warn as logWarn, success as logSuccess } from '../utils.js';
 import { SessionBudget } from '../budget.js';
+import {
+  isGitRepo,
+  hasUncommittedChanges,
+  getCurrentBranch,
+  createAndCheckoutBranch,
+  commitChanges,
+  getLatestHash,
+} from '../git.js';
 
 // ── Chat Command Options ─────────────────────────────────────
 interface ChatOptions {
@@ -43,6 +52,7 @@ interface ChatOptions {
   budget?: boolean;      // Commander uses --no-budget → budget=false
   dryRun?: boolean;
   verbose?: boolean;
+  branch?: string;
 }
 
 // ── Chat Command ─────────────────────────────────────────────
@@ -61,6 +71,50 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
     budgetEnabled,
   );
 
+  // ── Sandbox Branching ────────────────────────────────────
+  let sandboxBranch: string | null = null;
+  if (options.branch) {
+    if (!isGitRepo()) {
+      logError('Not a git repository. Cannot use --branch flag.');
+      process.exit(1);
+    }
+
+    const current = getCurrentBranch();
+    if (current.startsWith('mythos/')) {
+      logError(`Already inside a mythos branch session: ${c.bold}${current}${c.reset}`);
+      logError('Nested sandboxing is blocked to prevent Git ambiguity.');
+      process.exit(1);
+    }
+
+    if (hasUncommittedChanges()) {
+      logError('Uncommitted changes detected in working tree.');
+      logError('Please commit or stash your changes before starting a sandboxed session.');
+      process.exit(1);
+    }
+
+    // Generate unique branch name: mythos/<name>-YYYYMMDD-HHMM
+    const timestampStr = new Date()
+      .toISOString()
+      .replace(/[-T:]/g, '')
+      .slice(0, 12); // YYYYMMDDHHMM
+    
+    const formattedTimestamp = `${timestampStr.slice(0, 8)}-${timestampStr.slice(8)}`;
+    const sanitizedName = options.branch
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    sandboxBranch = `mythos/${sanitizedName}-${formattedTimestamp}`;
+
+    try {
+      createAndCheckoutBranch(sandboxBranch);
+    } catch (err: any) {
+      logError(`Failed to create sandbox branch: ${err.message}`);
+      process.exit(1);
+    }
+  }
+
   // ── Banner ───────────────────────────────────────────────
   console.log(BANNER);
 
@@ -73,6 +127,12 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
   if (verbose) modes.push(verboseBadge());
   if (!budgetEnabled) modes.push(`${c.yellow}budget: disabled${c.reset}`);
   console.log(`  ${modes.join(' · ')}`);
+
+  if (sandboxBranch) {
+    console.log(`  ${c.green}✔ Sandbox mode enabled${c.reset}`);
+    console.log(`  ${c.dim}branch: ${c.bold}${sandboxBranch}${c.reset}`);
+  }
+
   if (dryRun) {
     console.log(`  ${dryRunBadge()} ${c.dim}Filesystem writes previewed. API calls execute normally.${c.reset}`);
   }
@@ -136,6 +196,14 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
       if (budgetEnabled && budget.status().turns > 0) {
         console.log(`\n${budget.formatBar()}`);
       }
+
+      if (sandboxBranch) {
+        console.log(`\n${c.green}✔ Session complete${c.reset} ${c.dim}(branch: ${c.bold}${sandboxBranch}${c.dim})${c.reset}`);
+      }
+
+      // ── Session Finalization (Auto-Commit + Metadata) ──
+      await finalizeSession(sandboxBranch, dryRun);
+
       console.log(`\n${c.dim}Capybara signing off. 🐾${c.reset}\n`);
       rl.close();
       process.exit(0);
@@ -172,6 +240,9 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
       // ── Graceful Save: persist progress before stopping ──
       const summary = budget.formatSessionSummary();
       appendEntry(summary, '⏸ Session paused — budget reached', dryRun);
+      
+      // Finalize session with metadata
+      await finalizeSession(sandboxBranch, dryRun);
 
       const warning = budget.formatWarning();
       if (warning) console.log(`\n${warning}`);
@@ -449,5 +520,34 @@ function summarizeActions(output: string, userInput: string): string {
   }
   // Fallback: first 80 chars of user input
   return `chat: ${userInput.slice(0, 80)}`;
+}
+
+/**
+ * Handles deterministic session finalization:
+ * 1. Auto-commits changes (if git and dirty)
+ * 2. Records commit hash and branch in MEMORY.md metadata block
+ */
+async function finalizeSession(sandboxBranch: string | null, dryRun: boolean): Promise<void> {
+  let commitHash = 'none';
+  const repo = isGitRepo();
+
+  if (repo && !dryRun) {
+    try {
+      if (hasUncommittedChanges()) {
+        commitChanges('mythos: session end');
+      }
+      commitHash = getLatestHash();
+    } catch (err: any) {
+      logWarn(`Auto-commit failed: ${err.message}`);
+    }
+  }
+
+  const metadata: Record<string, string> = {
+    commit: commitHash,
+    branch: sandboxBranch || (repo ? getCurrentBranch() : 'none'),
+    timestamp_end: new Date().toISOString(),
+  };
+
+  appendMetadataBlock(metadata, dryRun);
 }
 
