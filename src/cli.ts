@@ -21,7 +21,7 @@ program
     'Capybara-tier CLI router — Claude Opus 4.7 with Adaptive Thinking, ' +
     'Strict Write Discipline, and Self-Healing Memory.',
   )
-  .version('1.1.7');
+  .version('1.1.8');
 
 // ── mythos chat ──────────────────────────────────────────────
 program
@@ -53,6 +53,10 @@ program
   .option(
     '--verbose',
     'Show detailed SWD traces and memory operations',
+  )
+  .option(
+    '-b, --branch <name>',
+    'Run session in a new git branch for sandboxed reasoning',
   )
   .action(async (options) => {
     await chatCommand(options);
