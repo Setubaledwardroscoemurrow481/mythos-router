@@ -7,7 +7,8 @@
 import * as readline from 'node:readline';
 import * as path from 'node:path';
 import { streamMessage, formatTokenUsage, type Message, type MythosResponse } from '../client.js';
-import { SWDEngine, parseActions, printSWDResults, dryRunSWD, printVerboseParse, resolveSafePath, summarizeActions, type FileAction, type SWDRunResult } from '../swd.js';
+import { SWDEngine, parseActions, resolveSafePath, summarizeActions, type FileAction, type SWDRunResult } from '../swd.js';
+import { printSWDResults, dryRunSWD, printVerboseParse } from '../swd-cli.js';
 import { saveSessionMetric } from '../metrics.js';
 import { appendEntry, appendMetadataBlock, needsDream, getMemoryContext, printMemoryStatus } from '../memory.js';
 import { type EffortLevel, MAX_CORRECTION_RETRIES, MODELS, validateApiKey } from '../config.js';
@@ -20,6 +21,7 @@ export interface ChatUI {
   startLoading(msg: string): void;
   updateLoading(msg: string): void;
   stopLoading(msg?: string): void;
+  write(text: string): void;   // Raw streaming output (no newline)
   log(msg: string): void;
   warn(msg: string): void;
   error(msg: string): void;
@@ -108,11 +110,11 @@ class ChatSession {
             this.ui.stopLoading(`${c.green}✔${c.reset} ${c.dim}Reasoning complete${c.reset}\n`);
             streamStarted = true;
           }
-          process.stdout.write(delta);
+          this.ui.write(delta);
         },
       );
 
-      process.stdout.write('\n');
+      this.ui.write('\n');
       this.history.push({ role: 'assistant', content: response.text });
       this.budget.record(response.inputTokens, response.outputTokens);
 
@@ -197,11 +199,11 @@ class ChatSession {
               this.ui.stopLoading('\n');
               streamStarted = true;
             }
-            process.stdout.write(delta);
+            this.ui.write(delta);
           }
         );
 
-        process.stdout.write('\n');
+        this.ui.write('\n');
         this.history.push({ role: 'assistant', content: response.text });
         this.budget.record(response.inputTokens, response.outputTokens);
 
@@ -267,6 +269,7 @@ class TerminalUI implements ChatUI {
   startLoading(msg: string) { this.spinner.start(msg); }
   updateLoading(msg: string) { this.spinner.update(msg); }
   stopLoading(msg?: string) { this.spinner.stop(msg); }
+  write(text: string) { process.stdout.write(text); }
   log(msg: string) { console.log(msg); }
   warn(msg: string) { logWarn(msg); }
   error(msg: string) { logError(msg); }
