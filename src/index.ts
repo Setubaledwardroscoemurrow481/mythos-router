@@ -6,15 +6,13 @@
 // Export the Anthropic Adaptive Routing Client
 export { getClient, streamMessage, sendMessage, formatTokenUsage, type Message, type MythosResponse } from './client.js';
 
-// Export the Strict Write Discipline Engine (v1 API)
+// Export the Strict Write Discipline Engine (v1 API — Pure Kernel)
 export {
   SWDEngine,
   parseActions,
   snapshotFile,
   resolveSafePath,
   summarizeActions,
-  printSWDResults,
-  dryRunSWD,
   type FileAction,
   type ActionIntent,
   type ActionResult,
@@ -23,6 +21,9 @@ export {
   type SWDOptions,
   type FileSnapshot,
 } from './swd.js';
+
+// Export the SWD CLI Presentation Layer
+export { printSWDResults, dryRunSWD, printVerboseParse } from './swd-cli.js';
 
 // Export the Self-Healing Memory
 export { readMemory, writeCompressedMemory, initMemory, appendEntry, needsDream, getMemoryContext, type MemoryEntry } from './memory.js';
