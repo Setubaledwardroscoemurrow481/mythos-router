@@ -248,11 +248,20 @@ class InternalSessionContext {
 
   public getSnapshot(path: string, type: 'before' | 'after'): FileSnapshot {
     const absPath = resolveSafePath(path);
-    const registry = type === 'before' ? this.snapshots.before : this.snapshots.after;
-    if (registry.has(absPath)) return registry.get(absPath)!;
+
+    // 'before' snapshots are memoized — we always want the original pre-run state.
+    if (type === 'before') {
+      if (this.snapshots.before.has(absPath)) return this.snapshots.before.get(absPath)!;
+      const snap = snapshotFile(absPath);
+      this.snapshots.before.set(absPath, snap);
+      if (!this.logs.rollbackMap.has(absPath)) this.logs.rollbackMap.set(absPath, snap);
+      return snap;
+    }
+
+    // 'after' snapshots always re-read disk state. If two actions touch the same
+    // file in one run, the second verification must see the latest disk reality.
     const snap = snapshotFile(absPath);
-    registry.set(absPath, snap);
-    if (type === 'before' && !this.logs.rollbackMap.has(absPath)) this.logs.rollbackMap.set(absPath, snap);
+    this.snapshots.after.set(absPath, snap);
     return snap;
   }
 
