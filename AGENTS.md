@@ -8,13 +8,17 @@
 ## Architecture
 - `src/cli.ts` — Commander.js entry point
 - `src/config.ts` — Constants, system prompt, validation, budget defaults
-- `src/client.ts` — Anthropic SDK wrapper (adaptive thinking)
+- `src/client.ts` — Anthropic SDK wrapper (adaptive thinking, streaming)
 - `src/budget.ts` — Session budget limiter (token cap, turn cap, progress bar)
-- `src/swd.ts` — Strict Write Discipline engine + dry-run preview
-- `src/memory.ts` — Self-healing MEMORY.md manager (dry-run aware)
+- `src/swd.ts` — SWD execution kernel (engine, types, parsing, snapshots — pure, no I/O)
+- `src/swd-cli.ts` — SWD terminal presentation layer (verification output, dry-run preview)
+- `src/memory.ts` — Self-healing MEMORY.md manager (SQLite FTS5 derivative index)
 - `src/metrics.ts` — Global metrics store (persistent budget tracking)
+- `src/diff.ts` — Myers' diff algorithm (zero-dependency, line-by-line)
+- `src/git.ts` — Git operations (branching, committing, status)
 - `src/utils.ts` — Terminal colors, spinner, formatting, badges, confirm prompt
-- `src/commands/chat.ts` — Interactive REPL (budget + dry-run + verbose)
+- `src/index.ts` — Public SDK exports (SWDEngine, parseActions, etc.)
+- `src/commands/chat.ts` — Interactive REPL (ChatSession orchestrator + ChatUI abstraction)
 - `src/commands/verify.ts` — Codebase ↔ Memory drift scanner (dry-run aware)
 - `src/commands/dream.ts` — Memory compression (dry-run aware)
 - `src/commands/stats.ts` — Budget analytics reporter
