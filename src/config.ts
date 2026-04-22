@@ -119,20 +119,17 @@ export function getEffort(flag?: string): EffortLevel {
 export function validateApiKey(): string {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key || typeof key !== 'string') {
-    console.error(
-      '\x1b[91m✖ ANTHROPIC_API_KEY not set.\x1b[0m\n' +
+    throw new Error(
+      'ANTHROPIC_API_KEY not set.\n' +
       '  Set it:  export ANTHROPIC_API_KEY="sk-ant-..."\n' +
       '  Or:      $env:ANTHROPIC_API_KEY = "sk-ant-..."\n'
     );
-    process.exit(1);
   }
 
   if (!key.startsWith('sk-ant-')) {
-    console.error(
-      '\x1b[91m✖ Invalid ANTHROPIC_API_KEY format.\x1b[0m\n' +
-      '  Expected prefix: sk-ant-...\n'
+    throw new Error(
+      'Invalid ANTHROPIC_API_KEY format. Expected prefix: sk-ant-...\n'
     );
-    process.exit(1);
   }
 
   return key.trim();
