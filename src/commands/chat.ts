@@ -20,6 +20,8 @@ import {
   printVerboseParse,
   resolveSafePath,
 } from '../swd.js';
+import { saveSessionMetric } from '../metrics.js';
+import * as path from 'node:path';
 import {
   appendEntry,
   appendMetadataBlock,
@@ -205,8 +207,7 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
       await finalizeSession(sandboxBranch, dryRun);
 
       console.log(`\n${c.dim}Capybara signing off. 🐾${c.reset}\n`);
-      rl.close();
-      process.exit(0);
+      shutdown();
     }
 
     if (input === '/dream') {
@@ -247,8 +248,7 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
       const warning = budget.formatWarning();
       if (warning) console.log(`\n${warning}`);
       console.log(`\n${budget.formatBar()}`);
-      rl.close();
-      process.exit(0);
+      shutdown();
     }
 
     // Add user message
@@ -397,8 +397,26 @@ export async function chatCommand(options: ChatOptions): Promise<void> {
     rl.prompt();
   });
 
-  rl.on('close', () => {
+  function shutdown() {
+    const snap = budget.status();
+    if (snap.totalTokens > 0) {
+      saveSessionMetric({
+        command: 'chat',
+        project: path.basename(process.cwd()),
+        inputTokens: snap.inputTokens,
+        outputTokens: snap.outputTokens,
+        turns: snap.turns,
+        costUSD: snap.estimatedCostUSD,
+        durationMs: snap.elapsedMs,
+        timestamp: new Date().toISOString(),
+      });
+    }
+    rl.close();
     process.exit(0);
+  }
+
+  rl.on('close', () => {
+    shutdown();
   });
 }
 
