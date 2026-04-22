@@ -1,27 +1,55 @@
 // ─────────────────────────────────────────────────────────────
 //  mythos-router :: swd.ts
-//  Strict Write Discipline — Filesystem verification engine
+//  Strict Write Discipline — Production API (v1)
 // ─────────────────────────────────────────────────────────────
 
 import { readFileSync, writeFileSync, statSync, existsSync, unlinkSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, relative, isAbsolute } from 'node:path';
-import { MAX_CORRECTION_RETRIES } from './config.js';
-import { c, warn, error, success, dryRunBadge, verboseBadge, confirmPrompt } from './utils.js';
+import { c, warn, success, dryRunBadge, verboseBadge, confirmPrompt } from './utils.js';
 
-// ── Path Sanitization ────────────────────────────────────────
-export function resolveSafePath(unsafePath: string): string {
-  const cwd = process.cwd();
-  const absPath = resolve(cwd, unsafePath);
-  const relPath = relative(cwd, absPath);
+// ── Public Types ─────────────────────────────────────────────
+export type ActionIntent = 'MUTATE' | 'NOOP';
 
-  if (relPath.startsWith('..') || isAbsolute(relPath)) {
-    throw new Error(`SECURITY VIOLATION: Path traversal detected. Action on '${unsafePath}' blocked.`);
-  }
-  return absPath;
+export interface FileAction {
+  path: string;
+  operation: 'CREATE' | 'MODIFY' | 'DELETE' | 'READ';
+  intent: ActionIntent;
+  content?: string;
+  contentHash?: string;
+  description?: string;
 }
 
-// ── Types ────────────────────────────────────────────────────
+export type VerificationStatus =
+  | 'verified' 
+  | 'noop'     
+  | 'failed'   
+  | 'drift';    
+
+export interface ActionResult {
+  action: FileAction;
+  status: VerificationStatus;
+  detail: string;
+}
+
+export interface SWDRunResult {
+  success: boolean;
+  results: ActionResult[];
+  rolledBack: boolean;
+  rollbackErrors: string[]; // Added for auditability
+  errors: string[];
+}
+
+export interface SWDOptions {
+  dryRun?: boolean;
+  strict?: boolean;
+  enableRollback?: boolean;
+  // Hook System for Extensibility
+  onAction?: (action: FileAction) => void;
+  onVerify?: (result: ActionResult) => void;
+  onRollback?: (path: string, success: boolean, error?: string) => void;
+}
+
 export interface FileSnapshot {
   path: string;
   exists: boolean;
@@ -31,409 +59,287 @@ export interface FileSnapshot {
   content: Buffer | null;
 }
 
-export interface FileAction {
-  path: string;
-  operation: 'CREATE' | 'MODIFY' | 'DELETE' | 'READ';
-  contentHash?: string;
-  description: string;
-  content?: string;
-}
+// ── SWD Engine ───────────────────────────────────────────────
+/**
+ * Authoritative filesystem execution kernel.
+ * Lifecycle: Plan → Snapshot_Before → Execute → Snapshot_After → Verify → Commit/Rollback
+ */
+export class SWDEngine {
+  private options: Required<SWDOptions>;
 
-export interface SWDResult {
-  verified: boolean;
-  actions: FileActionVerification[];
-  correctionPrompt?: string;
-  rollbacks?: string[];
-}
+  constructor(options: SWDOptions = {}) {
+    this.options = {
+      dryRun: options.dryRun ?? false,
+      strict: options.strict ?? true,
+      enableRollback: options.enableRollback ?? true,
+      onAction: options.onAction ?? (() => {}),
+      onVerify: options.onVerify ?? (() => {}),
+      onRollback: options.onRollback ?? (() => {}),
+    };
+  }
 
-export interface FileActionVerification {
-  action: FileAction;
-  status: 'verified' | 'drift' | 'failed';
-  detail: string;
-}
-
-export interface DryRunResult {
-  actions: FileAction[];
-  accepted: FileAction[];
-  rejected: FileAction[];
-}
-
-// ── Snapshot a file ──────────────────────────────────────────
-export function snapshotFile(filePath: string): FileSnapshot {
-  const absPath = resolve(filePath);
-  try {
-    if (!existsSync(absPath)) {
-      return { path: absPath, exists: false, size: 0, mtime: 0, hash: '', content: null };
+  public async run(actions: FileAction[]): Promise<SWDRunResult> {
+    if (actions.length === 0) {
+      return { success: true, results: [], rolledBack: false, rollbackErrors: [], errors: [] };
     }
+
+    const context = new InternalSessionContext();
+    const results: ActionResult[] = [];
+    const rollbackErrors: string[] = [];
+    let overallSuccess = true;
+
+    try {
+      // 1. PLAN + SNAPSHOT_BEFORE
+      for (const action of actions) {
+        context.getSnapshot(action.path, 'before');
+      }
+
+      // 2. EXECUTE
+      if (!this.options.dryRun) {
+        for (const action of actions) {
+          this.options.onAction(action);
+          this.executeAction(action);
+          context.logExecution(action);
+        }
+      }
+
+      // 3. SNAPSHOT_AFTER + VERIFY
+      for (const action of actions) {
+        // In dry run, we cannot verify filesystem outcomes.
+        if (this.options.dryRun) {
+          const res: ActionResult = {
+            action,
+            status: 'verified',
+            detail: `Dry-run: ${action.operation} ${action.path} (not applied)`
+          };
+          results.push(res);
+          this.options.onVerify(res);
+          continue;
+        }
+
+        const verification = this.verifyInternal(action, context);
+        
+        // Intent reinforcement
+        if (action.intent === 'MUTATE' && verification.status === 'noop') {
+          verification.status = 'failed';
+          verification.detail = `Intent mismatch: Expected mutation on ${action.path} but file remained identical.`;
+        }
+
+        results.push(verification);
+        this.options.onVerify(verification);
+
+        if (verification.status === 'failed' || (this.options.strict && verification.status === 'drift')) {
+          overallSuccess = false;
+        }
+      }
+
+      // 4. ROLLBACK
+      let rolledBack = false;
+      if (!overallSuccess && this.options.enableRollback && !this.options.dryRun) {
+        const rbResult = this.performRollback(context);
+        rolledBack = rbResult.anyRolledBack;
+        rollbackErrors.push(...rbResult.errors);
+      }
+
+      return {
+        success: overallSuccess,
+        results,
+        rolledBack,
+        rollbackErrors,
+        errors: results.filter(r => ['failed', 'drift'].includes(r.status)).map(r => r.detail),
+      };
+
+    } catch (err: any) {
+      return { success: false, results, rolledBack: false, rollbackErrors, errors: [err.message] };
+    }
+  }
+
+  private executeAction(action: FileAction): void {
+    const absPath = resolveSafePath(action.path);
+    try {
+      switch (action.operation) {
+        case 'CREATE':
+        case 'MODIFY':
+          if (action.content !== undefined) writeFileSync(absPath, action.content);
+          break;
+        case 'DELETE':
+          if (existsSync(absPath)) unlinkSync(absPath);
+          break;
+        case 'READ': break;
+      }
+    } catch (e: any) {
+      throw new Error(`Execution failed for ${action.path}: ${e.message}`);
+    }
+  }
+
+  private verifyInternal(action: FileAction, ctx: InternalSessionContext): ActionResult {
+    const before = ctx.getSnapshot(action.path, 'before');
+    const after = ctx.getSnapshot(action.path, 'after');
+    const changed = after.hash !== before.hash;
+
+    switch (action.operation) {
+      case 'CREATE':
+        if (!after.exists) return { action, status: 'failed', detail: `File was not created: ${action.path}` };
+        if (before.exists) return { action, status: 'drift', detail: `File already existed before CREATE: ${action.path}` };
+        break;
+      case 'MODIFY':
+        if (!after.exists) return { action, status: 'failed', detail: `File missing after MODIFY: ${action.path}` };
+        break;
+      case 'DELETE':
+        if (after.exists) return { action, status: 'failed', detail: `File still exists after DELETE: ${action.path}` };
+        break;
+    }
+
+    if (action.contentHash && after.hash !== action.contentHash) {
+      return { action, status: 'drift', detail: `Hash mismatch on ${action.path}: expected ${action.contentHash.slice(0, 12)}, got ${after.hash.slice(0, 12)}` };
+    }
+
+    return {
+      action,
+      status: changed ? 'verified' : 'noop',
+      detail: changed ? `Verified: ${action.operation} ${action.path}` : `No-op: ${action.path} remains identical.`,
+    };
+  }
+
+  private performRollback(ctx: InternalSessionContext): { anyRolledBack: boolean, errors: string[] } {
+    const revOrder = [...ctx.logs.executionOrder].reverse();
+    const seenPaths = new Set<string>();
+    const errors: string[] = [];
+    let anyRolledBack = false;
+
+    for (const action of revOrder) {
+      if (seenPaths.has(action.path)) continue;
+      const absPath = resolveSafePath(action.path);
+      const original = ctx.logs.rollbackMap.get(absPath);
+      const after = ctx.getSnapshot(action.path, 'after');
+      const current = snapshotFile(absPath);
+
+      if (!original) continue;
+
+      if (current.hash === after.hash && current.exists === after.exists) {
+        try {
+          if (original.exists && original.content !== null) {
+            writeFileSync(absPath, original.content);
+          } else if (existsSync(absPath)) {
+            unlinkSync(absPath);
+          }
+          anyRolledBack = true;
+          seenPaths.add(action.path);
+          this.options.onRollback(action.path, true);
+        } catch (e: any) { 
+          const msg = `Rollback failed for ${action.path}: ${e.message}`;
+          errors.push(msg);
+          this.options.onRollback(action.path, false, e.message);
+        }
+      } else {
+        const msg = `Concurrency Drift: Skipping rollback for ${action.path}`;
+        errors.push(msg);
+        this.options.onRollback(action.path, false, 'Concurrency drift detected');
+      }
+    }
+    return { anyRolledBack, errors };
+  }
+}
+
+// ── Internal Helpers ─────────────────────────────────────────
+class InternalSessionContext {
+  public snapshots = { before: new Map<string, FileSnapshot>(), after: new Map<string, FileSnapshot>() };
+  public logs = { executionOrder: [] as FileAction[], rollbackMap: new Map<string, FileSnapshot>() };
+
+  public getSnapshot(path: string, type: 'before' | 'after'): FileSnapshot {
+    const absPath = resolveSafePath(path);
+    const registry = type === 'before' ? this.snapshots.before : this.snapshots.after;
+    if (registry.has(absPath)) return registry.get(absPath)!;
+    const snap = snapshotFile(absPath);
+    registry.set(absPath, snap);
+    if (type === 'before' && !this.logs.rollbackMap.has(absPath)) this.logs.rollbackMap.set(absPath, snap);
+    return snap;
+  }
+
+  public logExecution(action: FileAction): void { this.logs.executionOrder.push(action); }
+}
+
+export function resolveSafePath(unsafePath: string): string {
+  const cwd = process.cwd();
+  const absPath = resolve(cwd, unsafePath);
+  const relPath = relative(cwd, absPath);
+  if (relPath.startsWith('..') || isAbsolute(relPath)) {
+    throw new Error(`SECURITY VIOLATION: Path traversal detected on '${unsafePath}'.`);
+  }
+  return absPath;
+}
+
+export function snapshotFile(filePath: string): FileSnapshot {
+  const absPath = resolveSafePath(filePath); 
+  try {
+    if (!existsSync(absPath)) return { path: absPath, exists: false, size: 0, mtime: 0, hash: '', content: null };
     const stat = statSync(absPath);
     const content = readFileSync(absPath);
     const hash = createHash('sha256').update(content).digest('hex');
-    return {
-      path: absPath,
-      exists: true,
-      size: stat.size,
-      mtime: stat.mtimeMs,
-      hash,
-      content,
-    };
+    return { path: absPath, exists: true, size: stat.size, mtime: stat.mtimeMs, hash, content };
   } catch {
     return { path: absPath, exists: false, size: 0, mtime: 0, hash: '', content: null };
   }
 }
 
-// ── Snapshot multiple files ──────────────────────────────────
-export function snapshotFiles(paths: string[]): Map<string, FileSnapshot> {
-  const map = new Map<string, FileSnapshot>();
-  for (const p of paths) {
-    const snap = snapshotFile(p);
-    map.set(snap.path, snap);
-  }
-  return map;
-}
-
-// ── Parse FILE_ACTION blocks from model output ──────────────
-export function parseFileActions(output: string): FileAction[] {
+export function parseActions(output: string): FileAction[] {
   const actions: FileAction[] = [];
-  const regex =
-    /\[FILE_ACTION:\s*(.+?)\]\s*\n\s*OPERATION:\s*(CREATE|MODIFY|DELETE|READ)\s*\n(?:\s*CONTENT_HASH:\s*(\S+)\s*\n)?\s*DESCRIPTION:\s*(.+?)\s*\n(?:\s*CONTENT:\s*([\s\S]*?)\s*\n)?\s*\[\/FILE_ACTION\]/gi;
-
+  const regex = /\[FILE_ACTION:\s*(.+?)\]\s*\n\s*OPERATION:\s*(CREATE|MODIFY|DELETE|READ)\s*\n(?:\s*INTENT:\s*(MUTATE|NOOP)\s*\n)?(?:\s*CONTENT_HASH:\s*(\S+)\s*\n)?\s*DESCRIPTION:\s*(.+?)\s*\n(?:\s*CONTENT:\s*([\s\S]*?)\s*\n)?\s*\[\/FILE_ACTION\]/gi;
   let match;
   while ((match = regex.exec(output)) !== null) {
     actions.push({
       path: match[1]!.trim(),
       operation: match[2]!.trim().toUpperCase() as FileAction['operation'],
-      contentHash: match[3]?.trim() || undefined,
-      description: match[4]!.trim(),
-      content: match[5]?.trim() || undefined,
+      intent: (match[3]?.trim().toUpperCase() || 'MUTATE') as ActionIntent,
+      contentHash: match[4]?.trim() || undefined,
+      description: match[5]!.trim(),
+      content: match[6]?.trim() || undefined,
     });
   }
   return actions;
 }
 
-// ── Verify a single action against filesystem ───────────────
-export function verifyAction(
-  action: FileAction,
-  before: FileSnapshot,
-  after: FileSnapshot,
-): FileActionVerification {
-  switch (action.operation) {
-    case 'CREATE': {
-      if (!after.exists) {
-        return {
-          action,
-          status: 'failed',
-          detail: `File was not created: ${action.path} (does not exist on disk)`,
-        };
-      }
-      if (before.exists) {
-        return {
-          action,
-          status: 'drift',
-          detail: `File already existed before CREATE: ${action.path}`,
-        };
-      }
-      if (action.contentHash && after.hash !== action.contentHash) {
-        return {
-          action,
-          status: 'drift',
-          detail: `Content hash mismatch: expected ${action.contentHash.slice(0, 12)}…, got ${after.hash.slice(0, 12)}…`,
-        };
-      }
-      return {
-        action,
-        status: 'verified',
-        detail: `Created: ${action.path} (${after.size} bytes)`,
-      };
-    }
-
-    case 'MODIFY': {
-      if (!after.exists) {
-        return {
-          action,
-          status: 'failed',
-          detail: `File does not exist after MODIFY: ${action.path}`,
-        };
-      }
-      if (after.hash === before.hash) {
-        return {
-          action,
-          status: 'drift',
-          detail: `File unchanged after claimed MODIFY: ${action.path}`,
-        };
-      }
-      if (action.contentHash && after.hash !== action.contentHash) {
-        return {
-          action,
-          status: 'drift',
-          detail: `Content hash mismatch after MODIFY: expected ${action.contentHash.slice(0, 12)}…, got ${after.hash.slice(0, 12)}…`,
-        };
-      }
-      return {
-        action,
-        status: 'verified',
-        detail: `Modified: ${action.path} (${before.size} → ${after.size} bytes)`,
-      };
-    }
-
-    case 'DELETE': {
-      if (after.exists) {
-        return {
-          action,
-          status: 'failed',
-          detail: `File still exists after claimed DELETE: ${action.path}`,
-        };
-      }
-      if (!before.exists) {
-        return {
-          action,
-          status: 'drift',
-          detail: `File didn't exist before DELETE: ${action.path}`,
-        };
-      }
-      return {
-        action,
-        status: 'verified',
-        detail: `Deleted: ${action.path}`,
-      };
-    }
-
-    case 'READ': {
-      if (!after.exists) {
-        return {
-          action,
-          status: 'failed',
-          detail: `File does not exist for READ: ${action.path}`,
-        };
-      }
-      return {
-        action,
-        status: 'verified',
-        detail: `Read: ${action.path} (${after.size} bytes)`,
-      };
-    }
-
-    default:
-      return {
-        action,
-        status: 'drift',
-        detail: `Unknown operation: ${action.operation}`,
-      };
-  }
-}
-
-// ── Full SWD verification pass ───────────────────────────────
-export function runSWD(
-  modelOutput: string,
-  beforeSnapshots: Map<string, FileSnapshot>,
-): SWDResult {
-  const actions = parseFileActions(modelOutput);
-
-  if (actions.length === 0) {
-    return { verified: true, actions: [] };
-  }
-
-  // Take "after" snapshots for all referenced paths
-  const paths = actions.map((a) => resolveSafePath(a.path));
-  const afterSnapshots = snapshotFiles(paths);
-
-  const verifications: FileActionVerification[] = [];
-  let allVerified = true;
-
-  for (const action of actions) {
-    const absPath = resolveSafePath(action.path);
-    const before = beforeSnapshots.get(absPath) ?? snapshotFile(absPath);
-    const after = afterSnapshots.get(absPath) ?? snapshotFile(absPath);
-    const result = verifyAction(action, before, after);
-    verifications.push(result);
-    if (result.status !== 'verified') {
-      allVerified = false;
-    }
-  }
-
-  let correctionPrompt: string | undefined;
-  const rollbacks: string[] = [];
-
-  if (!allVerified) {
-    // Transactional Rollback
-    for (const action of actions) {
-      const absPath = resolveSafePath(action.path);
-      const before = beforeSnapshots.get(absPath);
-      const after = afterSnapshots.get(absPath);
-      
-      if (!before || !after) continue;
-
-      if (before.hash !== after.hash || before.exists !== after.exists) {
-        try {
-          if (before.exists && before.content !== null) {
-            writeFileSync(absPath, before.content);
-          } else if (existsSync(absPath)) {
-            unlinkSync(absPath);
-          }
-          rollbacks.push(action.path);
-        } catch (e) {
-          // Silent catch for rollback errors
-        }
-      }
-    }
-
-    const failures = verifications
-      .filter((v) => v.status !== 'verified')
-      .map(
-        (v) =>
-          `- [${v.status.toUpperCase()}] ${v.action.operation} ${v.action.path}: ${v.detail}`,
-      )
-      .join('\n');
-
-    correctionPrompt =
-      `[SWD CORRECTION TURN]\n` +
-      `The following file actions failed verification:\n${failures}\n\n` +
-      `Actual filesystem state:\n` +
-      verifications
-        .filter((v) => v.status !== 'verified')
-        .map((v) => {
-          const after = afterSnapshots.get(resolveSafePath(v.action.path));
-          return `- ${v.action.path}: exists=${after?.exists ?? false}, size=${after?.size ?? 0}, hash=${after?.hash?.slice(0, 16) ?? 'N/A'}`;
-        })
-        .join('\n') +
-      `\n\nPlease correct your response. You have ${MAX_CORRECTION_RETRIES} correction attempts remaining.`;
-  }
-
-  return {
-    verified: allVerified,
-    actions: verifications,
-    correctionPrompt,
-    rollbacks,
-  };
-}
-
-// ── Print SWD results ────────────────────────────────────────
-export function printSWDResults(result: SWDResult): void {
-  if (result.actions.length === 0) return;
-
+// ── CLI Compatibility ────────────────────────────────────────
+export function printSWDResults(result: SWDRunResult): void {
+  if (result.results.length === 0) return;
   console.log(`\n${c.dim}── SWD Verification ──${c.reset}`);
-  for (const v of result.actions) {
-    switch (v.status) {
-      case 'verified':
-        success(v.detail);
-        break;
-      case 'drift':
-        warn(v.detail);
-        break;
-      case 'failed':
-        error(v.detail);
-        break;
-    }
+  for (const v of result.results) {
+    const icon = ['verified', 'noop'].includes(v.status) ? c.green : c.red;
+    console.log(`  ${icon}•${c.reset} ${v.detail}`);
   }
-
-  if (result.rollbacks && result.rollbacks.length > 0) {
+  if (result.rolledBack) {
     console.log(`\n${c.bgYellow}${c.black}${c.bold} TRANSACTION ROLLBACK ${c.reset}`);
-    for (const rb of result.rollbacks) {
-      console.log(`  ${c.yellow}⟲${c.reset} Restored pristine state: ${c.cyan}${rb}${c.reset}`);
-    }
+    console.log(`  ${c.yellow}⟲${c.reset} All operations reverted due to failure.`);
   }
 }
 
-// ── Pre-scan: snapshot files that might be affected ──────────
-export function prescanPaths(modelOutput: string): string[] {
-  const actions = parseFileActions(modelOutput);
-  return actions.map((a) => resolveSafePath(a.path));
-}
-
-// ── Dry-Run SWD — Preview actions with interactive approval ──
 import { renderDiff } from './diff.js';
-
-export async function dryRunSWD(modelOutput: string): Promise<DryRunResult> {
-  const actions = parseFileActions(modelOutput);
-
-  if (actions.length === 0) {
-    console.log(`\n${dryRunBadge()} ${c.dim}No file actions detected in response.${c.reset}`);
-    return { actions: [], accepted: [], rejected: [] };
-  }
-
-  console.log(`\n${dryRunBadge()} ${c.bold}── File Action Preview ──${c.reset}`);
-  console.log(`${c.dim}  ${actions.length} file action(s) detected. Review each:${c.reset}\n`);
-
+export async function dryRunSWD(actions: FileAction[]): Promise<{ accepted: FileAction[], rejected: FileAction[] }> {
+  if (actions.length === 0) return { accepted: [], rejected: [] };
+  console.log(`\n${dryRunBadge()} ${c.bold}── File Action Preview ──${c.reset}\n`);
   const accepted: FileAction[] = [];
   const rejected: FileAction[] = [];
-
   for (let i = 0; i < actions.length; i++) {
     const action = actions[i]!;
-    const absPath = resolveSafePath(action.path);
-    const snap = snapshotFile(absPath);
-
-    // Show action header
-    const opColor = action.operation === 'DELETE' ? c.red :
-                     action.operation === 'CREATE' ? c.green :
-                     action.operation === 'MODIFY' ? c.yellow : c.cyan;
-
-    console.log(`  ${c.bold}${i + 1}/${actions.length}${c.reset} ${opColor}${action.operation}${c.reset} ${c.cyan}${action.path}${c.reset}`);
-    console.log(`  ${c.dim}Description: ${action.description}${c.reset}`);
-
-    // Show Inline Diff if applicable
+    const snap = snapshotFile(action.path);
+    console.log(`  ${c.bold}${i + 1}/${actions.length}${c.reset} ${c.cyan}${action.operation}${c.reset} ${action.path}`);
+    console.log(`  ${c.dim}Intent: ${action.intent} | ${action.description}${c.reset}`);
     if (action.content && (action.operation === 'MODIFY' || action.operation === 'CREATE')) {
-      console.log(`\n  ${c.dim}── Inline Diff ──${c.reset}`);
-      const oldContent = snap.exists && snap.content ? snap.content.toString() : '';
-      const diffOutput = renderDiff(oldContent, action.content);
-      console.log(diffOutput);
-      console.log(`  ${c.dim}─────────────────${c.reset}\n`);
-    } else if (snap.exists) {
-      console.log(`  ${c.dim}Current state: ${snap.size} bytes, hash: ${snap.hash.slice(0, 16)}…${c.reset}`);
-    } else {
-      console.log(`  ${c.dim}Current state: does not exist${c.reset}`);
+      const old = snap.exists && snap.content ? snap.content.toString() : '';
+      console.log(renderDiff(old, action.content));
     }
-
-    if (action.contentHash) {
-      console.log(`  ${c.dim}Expected hash: ${action.contentHash.slice(0, 16)}…${c.reset}`);
-    }
-
-    // Ask for confirmation
-    const ok = await confirmPrompt(
-      `  ${dryRunBadge()} Accept ${opColor}${action.operation}${c.reset} on ${c.cyan}${action.path}${c.reset}?`,
-    );
-
-    if (ok) {
-      accepted.push(action);
-      success(`  Accepted: ${action.operation} ${action.path}`);
-    } else {
-      rejected.push(action);
-      warn(`  Rejected: ${action.operation} ${action.path}`);
-    }
+    if (await confirmPrompt(`  Accept?`)) accepted.push(action); else rejected.push(action);
     console.log();
   }
-
-  // Summary
-  console.log(`${dryRunBadge()} ${c.bold}Summary:${c.reset} ` +
-    `${c.green}${accepted.length} accepted${c.reset} · ` +
-    `${c.red}${rejected.length} rejected${c.reset}`);
-
-  return { actions, accepted, rejected };
+  return { accepted, rejected };
 }
 
-// ── Verbose action logging ───────────────────────────────────
 export function printVerboseAction(action: FileAction): void {
-  const opColor = action.operation === 'DELETE' ? c.red :
-                   action.operation === 'CREATE' ? c.green :
-                   action.operation === 'MODIFY' ? c.yellow : c.cyan;
-
-  console.log(`  ${verboseBadge()} ${opColor}${action.operation}${c.reset} ${c.cyan}${action.path}${c.reset}`);
-  console.log(`  ${c.dim}├─ Description: ${action.description}${c.reset}`);
-  if (action.contentHash) {
-    console.log(`  ${c.dim}├─ Content Hash: ${action.contentHash}${c.reset}`);
-  }
-  const snap = snapshotFile(resolveSafePath(action.path));
-  if (snap.exists) {
-    console.log(`  ${c.dim}└─ Current: ${snap.size} bytes, hash=${snap.hash.slice(0, 24)}…${c.reset}`);
-  } else {
-    console.log(`  ${c.dim}└─ Current: does not exist${c.reset}`);
-  }
+  console.log(`  ${verboseBadge()} ${c.cyan}${action.operation}${c.reset} ${action.path} (Intent: ${action.intent})`);
 }
 
-// ── Verbose parse trace ──────────────────────────────────────
-export function printVerboseParse(modelOutput: string): void {
-  const actions = parseFileActions(modelOutput);
-  console.log(`\n${verboseBadge()} ${c.dim}── FILE_ACTION Parse Trace ──${c.reset}`);
-  console.log(`${c.dim}  Parsed ${actions.length} FILE_ACTION block(s) from model output (${modelOutput.length} chars)${c.reset}`);
-  for (const action of actions) {
-    printVerboseAction(action);
-  }
+export function printVerboseParse(output: string): void {
+  const actions = parseActions(output);
+  console.log(`\n${verboseBadge()} ${c.dim}── Parse Trace (${actions.length}) ──${c.reset}`);
+  for (const action of actions) printVerboseAction(action);
 }
