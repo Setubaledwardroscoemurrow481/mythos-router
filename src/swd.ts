@@ -292,8 +292,9 @@ export function snapshotFile(filePath: string): FileSnapshot {
 
 export function parseActions(output: string): FileAction[] {
   const actions: FileAction[] = [];
-  // Fixed ReDoS: Use [ \t]* for horizontal whitespace and [^\n]+ for line-bound fields.
-  const regex = /\[FILE_ACTION:[ \t]*([^\]\n]+)\][ \t]*\r?\n[ \t]*OPERATION:[ \t]*(CREATE|MODIFY|DELETE|READ)[ \t]*\r?\n(?:[ \t]*INTENT:[ \t]*(MUTATE|NOOP)[ \t]*\r?\n)?(?:[ \t]*CONTENT_HASH:[ \t]*(\S+)[ \t]*\r?\n)?[ \t]*DESCRIPTION:[ \t]*([^\n]+)[ \t]*\r?\n(?:[ \t]*CONTENT:[ \t]*([\s\S]*?)\r?\n)?[ \t]*\[\/FILE_ACTION\]/gi;
+  // Final ReDoS Fix: Mutually exclusive whitespace and capture groups.
+  // We ensure capturing groups for path and description start with a non-whitespace character [^\s\n].
+  const regex = /\[FILE_ACTION:[ \t]*([^\]\s\n][^\]\n]*?)\][ \t]*\r?\n[ \t]*OPERATION:[ \t]*(CREATE|MODIFY|DELETE|READ)[ \t]*\r?\n(?:[ \t]*INTENT:[ \t]*(MUTATE|NOOP)[ \t]*\r?\n)?(?:[ \t]*CONTENT_HASH:[ \t]*(\S+)[ \t]*\r?\n)?[ \t]*DESCRIPTION:[ \t]*([^ \t\n][^\n]*?)[ \t]*\r?\n(?:[ \t]*CONTENT:[ \t]*([\s\S]*?)\r?\n)?[ \t]*\[\/FILE_ACTION\]/gi;
 
   let match;
   while ((match = regex.exec(output)) !== null) {
