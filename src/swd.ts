@@ -292,20 +292,60 @@ export function snapshotFile(filePath: string): FileSnapshot {
 
 export function parseActions(output: string): FileAction[] {
   const actions: FileAction[] = [];
-  // Final ReDoS Fix: Mutually exclusive whitespace and capture groups.
-  // We ensure capturing groups for path and description start with a non-whitespace character [^\s\n].
-  const regex = /\[FILE_ACTION:[ \t]*([^\]\s\n][^\]\n]*?)\][ \t]*\r?\n[ \t]*OPERATION:[ \t]*(CREATE|MODIFY|DELETE|READ)[ \t]*\r?\n(?:[ \t]*INTENT:[ \t]*(MUTATE|NOOP)[ \t]*\r?\n)?(?:[ \t]*CONTENT_HASH:[ \t]*(\S+)[ \t]*\r?\n)?[ \t]*DESCRIPTION:[ \t]*([^ \t\n][^\n]*?)[ \t]*\r?\n(?:[ \t]*CONTENT:[ \t]*([\s\S]*?)\r?\n)?[ \t]*\[\/FILE_ACTION\]/gi;
+  let cursor = 0;
+  const START_TAG = '[FILE_ACTION:';
+  const END_TAG = '[/FILE_ACTION]';
 
-  let match;
-  while ((match = regex.exec(output)) !== null) {
-    actions.push({
-      path: match[1]!.trim(),
-      operation: match[2]!.trim().toUpperCase() as FileAction['operation'],
-      intent: (match[3]?.trim().toUpperCase() || 'MUTATE') as ActionIntent,
-      contentHash: match[4]?.trim() || undefined,
-      description: match[5]!.trim(),
-      content: match[6]?.trim() || undefined,
-    });
+  while (true) {
+    const startIdx = output.indexOf(START_TAG, cursor);
+    if (startIdx === -1) break;
+
+    const endIdx = output.indexOf(END_TAG, startIdx);
+    if (endIdx === -1) {
+      cursor = startIdx + 1;
+      continue;
+    }
+
+    const block = output.slice(startIdx, endIdx + END_TAG.length);
+    cursor = endIdx + END_TAG.length;
+
+    const lines = block.split(/\r?\n/).map(l => l.trim());
+    
+    // 1. Extract Path from the start tag line
+    const firstLine = lines[0] || '';
+    const pathEndIdx = firstLine.lastIndexOf(']');
+    const path = pathEndIdx !== -1 ? firstLine.slice(START_TAG.length, pathEndIdx).trim() : '';
+
+    // 2. Extract single-line fields
+    const getField = (prefix: string) => {
+      const line = lines.find(l => l.toUpperCase().startsWith(prefix.toUpperCase()));
+      return line ? line.slice(prefix.length).trim() : undefined;
+    };
+
+    const operation = getField('OPERATION:');
+    const intent = getField('INTENT:');
+    const contentHash = getField('CONTENT_HASH:');
+    const description = getField('DESCRIPTION:');
+
+    // 3. Extract multi-line Content
+    let content: string | undefined;
+    const contentMarker = 'CONTENT:';
+    const contentStartIdx = block.indexOf(contentMarker);
+    if (contentStartIdx !== -1) {
+      // Content is everything between 'CONTENT:' and '[/FILE_ACTION]'
+      content = block.slice(contentStartIdx + contentMarker.length, block.lastIndexOf(END_TAG)).trim();
+    }
+
+    if (path && operation && description) {
+      actions.push({
+        path,
+        operation: operation.toUpperCase() as FileAction['operation'],
+        intent: (intent?.toUpperCase() === 'NOOP' ? 'NOOP' : 'MUTATE') as ActionIntent,
+        contentHash,
+        description,
+        content,
+      });
+    }
   }
   return actions;
 }
