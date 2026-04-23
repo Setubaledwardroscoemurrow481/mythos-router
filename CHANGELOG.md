@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] — 2026-04-24
+
+### Added
+- **Auto Healing TDD Loop**: Bounded, error-driven autonomy. Passing `--test-cmd` will automatically execute tests after a successful SWD mutation. If tests fail, the CLI intercepts `stderr`, truncates it, identifies TS/Runtime issues, and feeds it back to Claude for a self-healing iteration.
+- **TDD Anti Thrashing Guards**: The orchestrator will automatically abort the healing loop if Claude attempts the exact same fix or if output remains identically broken, preventing runaway API costs.
+  
+### Security
+- **CodeQL Integration**: Added GitHub CodeQL scanning
+
+---
+
 ## [1.2.0] — 2026-04-23
 
 ### Added
@@ -134,6 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Correction Turns**: max 2 retries before yielding to human.
 - **Dream/Verify Commands**: memory compression and drift detection.
 
+[1.2.1]: https://github.com/thewaltero/mythos-router/releases/tag/v1.2.1
 [1.2.0]: https://github.com/thewaltero/mythos-router/releases/tag/v1.2.0
 [1.1.9]: https://github.com/thewaltero/mythos-router/releases/tag/v1.1.9
 [1.1.8]: https://github.com/thewaltero/mythos-router/releases/tag/v1.1.8
