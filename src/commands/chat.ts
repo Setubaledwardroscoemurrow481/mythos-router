@@ -12,7 +12,7 @@ import { printSWDResults, dryRunSWD, printVerboseParse } from '../swd-cli.js';
 import { saveSessionMetric } from '../metrics.js';
 import { appendEntry, appendMetadataBlock, needsDream, getMemoryContext, printMemoryStatus } from '../memory.js';
 import { type EffortLevel, MAX_CORRECTION_RETRIES, MODELS, validateApiKey } from '../config.js';
-import { c, Spinner, BANNER, hr, heading, dryRunBadge, error as logError, warn as logWarn, success as logSuccess } from '../utils.js';
+import { c, Spinner, BANNER, hr, heading, dryRunBadge, error as logError, warn as logWarn, success as logSuccess, runTestCommand } from '../utils.js';
 import { SessionBudget } from '../budget.js';
 import { isGitRepo, hasUncommittedChanges, getCurrentBranch, commitChanges, getLatestHash, createAndCheckoutBranch } from '../git.js';
 
@@ -164,6 +164,14 @@ class ChatSession {
       await this.runCorrectionLoop(result);
     }
 
+    if (this.options.testCmd) {
+      if (this.options.dryRun) {
+        this.ui.warn('Skipping test execution in dry-run mode.');
+      } else {
+        await this.runTestHealingLoop(this.options.testCmd);
+      }
+    }
+
     const status = result.success ? '✅ verified' : `⚠️ ${result.results.filter(r => r.status !== 'verified').length} issues`;
     appendEntry(summarizeActions(responseText, userInput), status, false);
   }
@@ -230,6 +238,107 @@ class ChatSession {
     }
   }
 
+  private async runTestHealingLoop(cmd: string): Promise<void> {
+    const maxRetries = parseInt(this.options.maxTestRetries || '3', 10);
+    let lastOutput = '';
+    let lastFailureCount = Infinity;
+    
+    // Targeted normalization for identical output detection
+    const normalizeOutput = (str: string) => 
+      str.replace(/\d+\.?\d*ms/g, '')
+         .replace(/\d+\.?\d*s/g, '')
+         .trim();
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      if (!this.budget.check().ok) {
+        this.ui.warn('TDD loop aborted — budget exhausted.');
+        return;
+      }
+
+      this.ui.startLoading(`Running tests: ${c.cyan}${cmd}${c.reset}...`);
+      const { passed, output } = await runTestCommand(cmd);
+      
+      if (passed) {
+        this.ui.stopLoading();
+        this.ui.success(`Tests passed!`);
+        return;
+      }
+
+      this.ui.stopLoading();
+      this.ui.error(`Tests failed (Attempt ${attempt}/${maxRetries})`);
+      
+      // 1. Precise Thrashing Guard
+      if (attempt > 1 && normalizeOutput(output) === normalizeOutput(lastOutput)) {
+         this.ui.warn('Test output is effectively unchanged from previous attempt. Stopping loop to prevent token drain.');
+         return;
+      }
+      lastOutput = output;
+
+      // 2. Regression Detection
+      const currentFailureCount = (output.match(/fail|error/gi) || []).length;
+      if (attempt > 1 && currentFailureCount > lastFailureCount) {
+         this.ui.warn(`Regression detected: Failure count increased (${lastFailureCount} → ${currentFailureCount}). Be cautious.`);
+      }
+      lastFailureCount = currentFailureCount;
+
+      // 3. Regex Issue Hinting
+      let hint = '';
+      if (/TypeError|ReferenceError/i.test(output)) {
+        hint = 'Runtime error detected.';
+      } else if (/TS\d+|error TS/i.test(output)) {
+        hint = 'TypeScript compilation issue detected.';
+      }
+
+      this.ui.log(`${c.dim}Analyzing failure and generating fix...${c.reset}`);
+
+      // 4. Structured Prompting
+      const prompt = `[TEST FAILURE]\n\nCommand:\n${cmd}\n\nSummary:\nThe test suite failed. Analyze the error output below and fix the code.\n${hint ? `Hint: ${hint}\n` : ''}\nError Output:\n\`\`\`text\n${output}\n\`\`\`\n\nInstructions:\n- Fix only what is necessary to make the test pass.\n- Do not rewrite unrelated files.\n- Keep fixes minimal and targeted.`;
+      
+      this.history.push({ role: 'user', content: prompt });
+      this.ui.startLoading(`Capybara is fixing tests...`);
+
+      let streamStarted = false;
+      const response = await streamMessage(
+        this.history,
+        this.options.effort as EffortLevel || 'high',
+        () => {}, 
+        (delta) => {
+          if (!streamStarted) {
+            this.ui.stopLoading('\n');
+            streamStarted = true;
+          }
+          this.ui.write(delta);
+        }
+      );
+      
+      this.ui.write('\n');
+      this.history.push({ role: 'assistant', content: response.text });
+      this.budget.record(response.inputTokens, response.outputTokens);
+
+      // 5. No-Op Guard
+      const actions = parseActions(response.text);
+      if (actions.length === 0) {
+        this.ui.warn('No actionable changes returned by the model. Stopping loop.');
+        break;
+      }
+
+      // 6. Execute Claude's fix via SWD
+      this.ui.startLoading('Applying test fixes...');
+      const fixResult = await this.engine.run(actions);
+      this.ui.stopLoading();
+      printSWDResults(fixResult);
+      
+      if (!fixResult.success) {
+         this.ui.error('SWD failed while attempting to fix tests. Yielding.');
+         break;
+      }
+    }
+    
+    this.ui.error(`Max test retries (${maxRetries}) reached. Yielding to human.`);
+    this.ui.log(`\n${c.dim}--- Final Test Output ---${c.reset}\n${lastOutput}`);
+  }
+
+
   public async finalize(sandboxBranch: string | null) {
     let commitHash = 'none';
     const repo = isGitRepo();
@@ -286,6 +395,8 @@ interface ChatOptions {
   dryRun?: boolean;
   verbose?: boolean;
   branch?: string;
+  testCmd?: string;
+  maxTestRetries?: string;
 }
 
 export async function chatCommand(options: ChatOptions): Promise<void> {
