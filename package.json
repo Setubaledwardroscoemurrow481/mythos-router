@@ -15,17 +15,19 @@
   "files": [
     "dist",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsc",
-    "test": "node --import tsx --test test/**/*.test.ts",
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
     "prepublishOnly": "npm run build",
     "start": "node dist/cli.js",
     "chat": "tsx src/cli.ts chat",
     "verify": "tsx src/cli.ts verify",
     "dream": "tsx src/cli.ts dream",
+    "stats": "tsx src/cli.ts stats",
     "rebuild": "tsx -e \"import { rebuildIndex } from './src/memory.js'; rebuildIndex();\""
   },
   "keywords": [
