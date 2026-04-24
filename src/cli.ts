@@ -22,7 +22,7 @@ program
     'Capybara-tier CLI router — Claude Opus 4.7 with Adaptive Thinking, ' +
     'Strict Write Discipline, and Self-Healing Memory.',
   )
-  .version('1.2.1');
+  .version('1.2.0');
 
 // ── mythos chat ──────────────────────────────────────────────
 program
@@ -67,6 +67,10 @@ program
     '--max-test-retries <n>',
     'Maximum number of times Claude can attempt to fix failing tests',
     '3',
+  )
+  .option(
+    '-s, --skill <names...>',
+    'Inject specific expert skills (e.g., -s mcp -s react)',
   )
   .action(async (options) => {
     await chatCommand(options);
