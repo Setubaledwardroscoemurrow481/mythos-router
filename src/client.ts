@@ -1,41 +1,96 @@
-import Anthropic from '@anthropic-ai/sdk';
+// ─────────────────────────────────────────────────────────────
+//  mythos-router :: client.ts
+//  Backward-compatible facade over the Provider Orchestrator
+//
+//  This file preserves the original API surface so that existing
+//  consumers (chat.ts, dream.ts, verify.ts, SDK users) continue
+//  to work without changes. Under the hood, it delegates to the
+//  ProviderOrchestrator for retry, fallback, and scoring.
+// ─────────────────────────────────────────────────────────────
+
+import { AnthropicProvider } from './providers/anthropic.js';
+import { OpenAIProvider } from './providers/openai.js';
+import { ProviderOrchestrator } from './providers/orchestrator.js';
+import type { UnifiedResponse } from './providers/types.js';
 import {
-  MODELS,
   CAPYBARA_SYSTEM_PROMPT,
+  MODELS,
   validateApiKey,
+  getOpenAIKey,
+  getDeepSeekKey,
   type EffortLevel,
 } from './config.js';
 import { c } from './utils.js';
 
-// ── Stream delta types (SDK doesn't export narrow types) ─────
-interface ThinkingDelta {
-  type: 'thinking_delta';
-  thinking: string;
-}
+// ── Re-export Message for backward compatibility ─────────────
+export type { Message } from './providers/types.js';
 
-interface TextDelta {
-  type: 'text_delta';
-  text: string;
-}
-
-type ContentDelta = ThinkingDelta | TextDelta;
-
-// ── Types ────────────────────────────────────────────────────
-export interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
+// ── Legacy Response Type (backward-compatible) ───────────────
 export interface MythosResponse {
   thinking: string;
   text: string;
   inputTokens: number;
   outputTokens: number;
+  /** Provider metadata (new — optional for backward compat) */
+  _orchestration?: {
+    providerId: string;
+    modelId: string;
+    fallbackTriggered: boolean;
+    incomplete: boolean;
+    latencyMs: number;
+  };
 }
 
-// ── Client Factory ───────────────────────────────────────────
-let _client: Anthropic | null = null;
+// ── Singleton Orchestrator ───────────────────────────────────
+let _orchestrator: ProviderOrchestrator | null = null;
 
+export function getOrchestrator(): ProviderOrchestrator {
+  if (!_orchestrator) {
+    const apiKey = validateApiKey();
+    _orchestrator = new ProviderOrchestrator();
+
+    // Primary: Anthropic (always registered)
+    _orchestrator.registerProvider(
+      new AnthropicProvider(apiKey),
+      { priority: 0 },
+    );
+
+    // Fallback: OpenAI (if OPENAI_API_KEY is set)
+    const openaiKey = getOpenAIKey();
+    if (openaiKey) {
+      _orchestrator.registerProvider(
+        new OpenAIProvider({
+          id: 'openai',
+          apiKey: openaiKey,
+          baseUrl: 'https://api.openai.com/v1',
+          defaultModel: 'gpt-4o',
+        }),
+        { priority: 1 },
+      );
+    }
+
+    // Fallback: DeepSeek (if DEEPSEEK_API_KEY is set)
+    const deepseekKey = getDeepSeekKey();
+    if (deepseekKey) {
+      _orchestrator.registerProvider(
+        new OpenAIProvider({
+          id: 'deepseek',
+          apiKey: deepseekKey,
+          baseUrl: 'https://api.deepseek.com/v1',
+          defaultModel: 'deepseek-chat',
+          supportsThinking: true,
+        }),
+        { priority: 2 },
+      );
+    }
+  }
+  return _orchestrator;
+}
+
+// ── Legacy getClient() (for direct SDK access if needed) ─────
+import Anthropic from '@anthropic-ai/sdk';
+
+let _client: Anthropic | null = null;
 export function getClient(): Anthropic {
   if (!_client) {
     const apiKey = validateApiKey();
@@ -44,131 +99,74 @@ export function getClient(): Anthropic {
   return _client;
 }
 
-// ── Input Validation ─────────────────────────────────────────
-function sanitizeMessages(messages: Message[]): Message[] {
-  return messages.map((m, i) => {
-    if (m.role !== 'user' && m.role !== 'assistant') {
-      throw new Error(`Invalid role at message[${i}]: ${String(m.role)}`);
-    }
-    if (typeof m.content !== 'string') {
-      throw new Error(`Message[${i}] content must be a string`);
-    }
-    const trimmed = m.content.trim();
-    if (trimmed.length === 0) {
-      throw new Error(`Empty message content at message[${i}]`);
-    }
-    return { role: m.role, content: trimmed };
-  });
+// ── Convert UnifiedResponse → MythosResponse ─────────────────
+function toMythosResponse(unified: UnifiedResponse): MythosResponse {
+  return {
+    thinking: unified.thinking,
+    text: unified.text,
+    inputTokens: unified.usage.inputTokens,
+    outputTokens: unified.usage.outputTokens,
+    _orchestration: {
+      providerId: unified.metadata.providerId,
+      modelId: unified.metadata.modelId,
+      fallbackTriggered: unified.metadata.fallbackTriggered,
+      incomplete: unified.metadata.incomplete,
+      latencyMs: unified.usage.latencyMs,
+    },
+  };
 }
 
-// ── Streaming Message ────────────────────────────────────────
+// ── Streaming Message (backward-compatible API) ──────────────
 export async function streamMessage(
-  messages: Message[],
+  messages: { role: 'user' | 'assistant'; content: string }[],
   effort: EffortLevel = 'high',
   onThinkingDelta?: (text: string) => void,
   onTextDelta?: (text: string) => void,
 ): Promise<MythosResponse> {
-  const client = getClient();
-  const apiMessages = sanitizeMessages(messages);
+  const orchestrator = getOrchestrator();
 
-  let thinkingText = '';
-  let responseText = '';
-  let inputTokens = 0;
-  let outputTokens = 0;
+  const unified = await orchestrator.streamMessage(messages, {
+    systemPrompt: CAPYBARA_SYSTEM_PROMPT,
+    maxTokens: 16384,
+    effort,
+    onThinkingDelta,
+    onTextDelta,
+  });
 
-  let stream;
-  try {
-    stream = await client.messages.stream({
-      model: MODELS[effort],
-      max_tokens: 16384,
-      thinking: { type: 'adaptive' },
-      output_config: { effort },
-      system: CAPYBARA_SYSTEM_PROMPT,
-      messages: apiMessages,
-    });
-  } catch (err) {
-    throw new Error(`Failed to start stream: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  try {
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta') {
-        const delta = event.delta as ContentDelta;
-
-        if (delta.type === 'thinking_delta') {
-          thinkingText += delta.thinking;
-          onThinkingDelta?.(delta.thinking);
-        } else if (delta.type === 'text_delta') {
-          responseText += delta.text;
-          onTextDelta?.(delta.text);
-        }
-      }
-    }
-  } catch (err) {
-    throw new Error(`Stream interrupted: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  const finalMessage = await stream.finalMessage();
-  inputTokens = finalMessage.usage?.input_tokens ?? 0;
-  outputTokens = finalMessage.usage?.output_tokens ?? 0;
-
-  return {
-    thinking: thinkingText,
-    text: responseText,
-    inputTokens,
-    outputTokens,
-  };
+  return toMythosResponse(unified);
 }
 
-// ── Non-streaming Message (for Dream/Verify) ─────────────────
+// ── Non-streaming Message (backward-compatible API) ──────────
 export async function sendMessage(
-  messages: Message[],
+  messages: { role: 'user' | 'assistant'; content: string }[],
   effort: EffortLevel = 'low',
   systemOverride?: string,
 ): Promise<MythosResponse> {
-  const client = getClient();
-  const apiMessages = sanitizeMessages(messages);
+  const orchestrator = getOrchestrator();
 
-  let response;
-  try {
-    response = await client.messages.create({
-      model: MODELS[effort],
-      max_tokens: 8192,
-      thinking: { type: 'adaptive' },
-      output_config: { effort },
-      system: systemOverride ?? CAPYBARA_SYSTEM_PROMPT,
-      messages: apiMessages,
-    });
-  } catch (err) {
-    throw new Error(`API request failed: ${err instanceof Error ? err.message : String(err)}`);
-  }
+  const unified = await orchestrator.sendMessage(messages, {
+    systemPrompt: systemOverride ?? CAPYBARA_SYSTEM_PROMPT,
+    maxTokens: 8192,
+    effort,
+  });
 
-  let thinkingText = '';
-  let responseText = '';
-
-  for (const block of response.content) {
-    if (block.type === 'thinking') {
-      const thinkingBlock = block as { type: 'thinking'; thinking: string };
-      thinkingText += thinkingBlock.thinking ?? '';
-    } else if (block.type === 'text') {
-      responseText += block.text;
-    }
-  }
-
-  return {
-    thinking: thinkingText,
-    text: responseText,
-    inputTokens: response.usage?.input_tokens ?? 0,
-    outputTokens: response.usage?.output_tokens ?? 0,
-  };
+  return toMythosResponse(unified);
 }
 
 // ── Token cost display ───────────────────────────────────────
 export function formatTokenUsage(resp: MythosResponse): string {
   const total = resp.inputTokens + resp.outputTokens;
+  const providerInfo = resp._orchestration
+    ? ` ${c.dim}via ${c.cyan}${resp._orchestration.providerId}${c.dim}/${resp._orchestration.modelId}${c.reset}`
+    : '';
+  const fallbackInfo = resp._orchestration?.fallbackTriggered
+    ? ` ${c.yellow}(fallback)${c.reset}`
+    : '';
+
   return (
     `${c.dim}tokens: ${c.cyan}${resp.inputTokens.toLocaleString()}${c.dim} in · ` +
     `${c.cyan}${resp.outputTokens.toLocaleString()}${c.dim} out · ` +
-    `${c.yellow}${total.toLocaleString()}${c.dim} total${c.reset}`
+    `${c.yellow}${total.toLocaleString()}${c.dim} total${c.reset}` +
+    providerInfo + fallbackInfo
   );
 }
