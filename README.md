@@ -13,8 +13,8 @@
 ## Claude Opus 4.7 · Strict Write Discipline · Zero Slop
 **A local CLI power tool for verifiable AI-assisted coding.**
 
+[What is this?](#what-is-this) • [Features](#features) • [Installation](#installation) • [Usage](#usage) • [Architecture](#architecture) • [Token Budget](#token-usage--budget) • [SDK](#-sdk-usage-for-agentic-systems)
 
-[What is this?](#what-is-this) | [Features](#features) | [Installation](#installation) | [Usage](#usage) | [Architecture](#architecture) | [Token Budget](#token-usage--budget) | [SDK](#-sdk-usage-for-agentic-systems)
 
 ---
 
@@ -51,6 +51,9 @@ Zero slop. Zero hallucinated state. Full adaptive thinking.
 
 | Feature | Description |
 |---------|-------------|
+|  **Multi-Provider Fallback** | Auto-routes between Anthropic, DeepSeek, and OpenAI with circuit breakers |
+|  **Skills Protocol** | Inject modular expert plugins via YAML frontmatter (`-s mcp`, `-s react`) |
+|  **Deterministic Caching** | SQLite-backed caching for zero-cost, zero-latency repetitive reasoning |
 |  **Adaptive Thinking** | Opus 4.7 with configurable effort levels (high/medium/low) |
 |  **Strict Write Discipline** | Pre/post filesystem snapshots verify every model claim |
 |  **Self-Healing Memory** | Authority-based logging with a rebuildable SQLite FTS5 search index |
@@ -96,9 +99,10 @@ As memory approaches capacity, the `dream` command delegates a compression phase
 # Install globally
 npm install -g mythos-router
 
-# Set your API key
+# Set your API keys (Anthropic is primary, others are fallbacks)
 export ANTHROPIC_API_KEY="sk-ant-..."
-# Windows: $env:ANTHROPIC_API_KEY = "sk-ant-..."
+export OPENAI_API_KEY="sk-proj-..."
+export DEEPSEEK_API_KEY="sk-..."
 
 # Go
 mythos chat
@@ -127,6 +131,7 @@ npm run chat
 
 ```bash
 mythos chat                  # Full power (high effort, Opus 4.7)
+mythos chat -s react         # Load the 'react' expert skill
 mythos chat --test-cmd "npm test" # Enable autonomous test-driven self-healing
 mythos chat --effort low     # Budget mode (Haiku 3)
 mythos chat --effort medium  # Balanced (Sonnet 3.5)
@@ -276,6 +281,12 @@ mythos-router/
 │       ├── verify.ts    # Codebase ↔ Memory scanner (dry-run aware)
 │       ├── dream.ts     # Memory compression (dry-run aware)
 │       └── stats.ts     # Budget analytics reporter
+├── src/providers/       # Multi-Provider Orchestration Engine
+│   ├── orchestrator.ts  # Adaptive routing, circuit breakers, scoring
+│   ├── pricing.ts       # Centralized token cost registry
+│   ├── types.ts         # Unified BaseProvider contracts
+│   ├── anthropic.ts     # Claude provider
+│   └── openai.ts        # Fetch-based OpenAI & DeepSeek provider
 ├── test/                # Automated test suite (node:test)
 ├── .mythosignore        # SWD scan exclusions
 ├── MEMORY.md            # Auto-generated agentic memory
@@ -323,7 +334,9 @@ If you prefer to keep it private, add `MEMORY.md` to your `.gitignore`.
 
 | Env Variable | Required | Description |
 |-------------|----------|-------------|
-| `ANTHROPIC_API_KEY` | ✅ | Your Anthropic API key |
+| `ANTHROPIC_API_KEY` | ✅ | Your Anthropic API key (Primary Provider) |
+| `OPENAI_API_KEY` | ❌ | OpenAI API Key (Fallback Provider) |
+| `DEEPSEEK_API_KEY` | ❌ | DeepSeek API Key (Fallback Provider, reasoning capable) |
 
 | File | Purpose |
 |------|---------| 
