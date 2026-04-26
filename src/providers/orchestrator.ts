@@ -1,13 +1,5 @@
-// ─────────────────────────────────────────────────────────────
-//  mythos-router :: providers/orchestrator.ts
-//  The Mythos Orchestration Engine
-//
-//  Adaptive routing, retry-before-fallback, circuit breakers,
-//  stream watchdogs, and per-provider concurrency control.
-//  Zero external dependencies.
-// ─────────────────────────────────────────────────────────────
-
 import { createHash } from 'node:crypto';
+import { TelemetryStore } from './telemetry.js';
 import {
   type BaseProvider,
   type Message,
@@ -25,6 +17,8 @@ import { calculateCost } from './pricing.js';
 interface ModelMetrics {
   successRate: number;   // EMA of success (0.0 - 1.0)
   avgLatency: number;    // EMA of latency in ms
+  prevSuccessRate: number;
+  prevAvgLatency: number;
   costPer1k: number;     // Average cost per 1k tokens
   totalCalls: number;
   totalFailures: number;
@@ -86,14 +80,14 @@ function extractFallbackReason(err: unknown): OrchestrationEvent['fallbackReason
 // ── Scoring Algorithm ────────────────────────────────────────
 function calculateScore(
   metrics: ModelMetrics,
-  taskType: 'fast' | 'reasoning' | 'tooling' = 'reasoning',
+  taskType: 'chat' | 'code' | 'analysis' | 'unknown' = 'chat',
 ): number {
   let latencyWeight = 0.05;
   let successWeight = 100;
 
   // Context-aware biasing
-  if (taskType === 'fast') latencyWeight = 0.2;
-  if (taskType === 'reasoning') successWeight = 150;
+  if (taskType === 'chat') latencyWeight = 0.2;
+  if (taskType === 'code' || taskType === 'analysis') successWeight = 150;
 
   return (
     (metrics.successRate * successWeight) -
@@ -119,12 +113,14 @@ export class ProviderOrchestrator {
   private slots: ProviderSlot[] = [];
   private eventLog: OrchestrationEvent[] = [];
   private sessionId: string;
+  private telemetry: TelemetryStore;
 
   constructor() {
     this.sessionId = createHash('sha256')
       .update(`${Date.now()}-${Math.random()}`)
       .digest('hex')
       .slice(0, 12);
+    this.telemetry = TelemetryStore.getInstance();
   }
 
   // ── Provider Registration ────────────────────────────────
@@ -143,6 +139,8 @@ export class ProviderOrchestrator {
       metrics: {
         successRate: 1.0,
         avgLatency: 1000,
+        prevSuccessRate: 1.0,
+        prevAvgLatency: 1000,
         costPer1k: 0,
         totalCalls: 0,
         totalFailures: 0,
@@ -203,7 +201,7 @@ export class ProviderOrchestrator {
     }
 
     // Adaptive mode: sort by score (highest first)
-    const taskType = options.taskType ?? 'reasoning';
+    const taskType = options.taskType ?? 'unknown';
     eligible.sort((a, b) => {
       // Healthy providers always beat degraded ones
       if (a.status === 'healthy' && b.status === 'degraded') return -1;
@@ -227,24 +225,44 @@ export class ProviderOrchestrator {
   // ── Update Metrics (EMA) ─────────────────────────────────
   private recordSuccess(slot: ProviderSlot, latencyMs: number, cost: number): void {
     const m = slot.metrics;
+    m.prevSuccessRate = m.successRate;
+    m.prevAvgLatency = m.avgLatency;
     m.successRate = m.successRate * (1 - EMA_ALPHA) + 1.0 * EMA_ALPHA;
     m.avgLatency = m.avgLatency * (1 - EMA_ALPHA) + latencyMs * EMA_ALPHA;
     m.costPer1k = cost > 0 ? m.costPer1k * (1 - EMA_ALPHA) + cost * EMA_ALPHA : m.costPer1k;
     m.totalCalls++;
+    this.pushTelemetryState(slot);
   }
 
   private recordFailure(slot: ProviderSlot, err: Error): void {
     const m = slot.metrics;
+    m.prevSuccessRate = m.successRate;
+    m.prevAvgLatency = m.avgLatency;
     m.successRate = m.successRate * (1 - EMA_ALPHA) + 0.0 * EMA_ALPHA;
     m.totalCalls++;
     m.totalFailures++;
     m.lastError = err.message;
     m.lastErrorTime = Date.now();
+    this.pushTelemetryState(slot);
   }
 
   private tripCircuitBreaker(slot: ProviderSlot): void {
     slot.status = 'degraded';
     slot.degradedUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS;
+    this.pushTelemetryState(slot);
+  }
+
+  private pushTelemetryState(slot: ProviderSlot): void {
+    this.telemetry.updateMetrics({
+      id: slot.provider.id,
+      successRate: slot.metrics.successRate,
+      avgLatency: slot.metrics.avgLatency,
+      prevSuccessRate: slot.metrics.prevSuccessRate,
+      prevAvgLatency: slot.metrics.prevAvgLatency,
+      totalCalls: slot.metrics.totalCalls,
+      totalFailures: slot.metrics.totalFailures,
+      degradedUntil: slot.degradedUntil
+    });
   }
 
   // ── Adaptive Watchdog Timeout ────────────────────────────
@@ -294,11 +312,45 @@ export class ProviderOrchestrator {
   }
 
   // ── Stream Message (Primary API) ─────────────────────────
+  private logRoutingDecision(
+    messages: Message[],
+    taskType: 'chat' | 'code' | 'analysis' | 'unknown',
+    candidates: ProviderSlot[]
+  ): void {
+    if (candidates.length === 0) return;
+    
+    const totalChars = messages.reduce((acc, m) => acc + m.content.length, 0);
+    const tokenEstimate = Math.ceil(totalChars / 4);
+    let bucket = '<4k';
+    if (tokenEstimate >= 4000 && tokenEstimate < 16000) bucket = '4k-16k';
+    else if (tokenEstimate >= 16000) bucket = '>16k';
+
+    const winner = candidates[0];
+    let reasoning = `Selected as only viable provider.`;
+    if (candidates.length > 1) {
+      const runnerUp = candidates[1];
+      const winScore = calculateScore(winner.metrics, taskType).toFixed(1);
+      const runScore = calculateScore(runnerUp.metrics, taskType).toFixed(1);
+      reasoning = `Score (${winScore}) beat ${runnerUp.provider.id} (${runScore}). EMA Latency: ${winner.metrics.avgLatency.toFixed(0)}ms vs ${runnerUp.metrics.avgLatency.toFixed(0)}ms.`;
+    }
+
+    this.telemetry.logDecision({
+      timestamp: Date.now(),
+      selectedProvider: winner.provider.id,
+      taskType,
+      inputSizeBucket: bucket,
+      reasoning
+    });
+  }
+
   async streamMessage(
     messages: Message[],
     options: StreamOptions,
   ): Promise<UnifiedResponse> {
     const candidates = this.selectProvider(options);
+    const taskType = options.taskType ?? 'unknown';
+    this.logRoutingDecision(messages, taskType, candidates);
+
     let fallbackTriggered = false;
     let primaryProvider = candidates[0]?.provider.id ?? 'none';
     let retryCount = 0;
@@ -396,6 +448,15 @@ export class ProviderOrchestrator {
         fallbackTriggered = true;
 
         const reason = extractFallbackReason(err);
+        
+        this.telemetry.logFailure({
+          timestamp: Date.now(),
+          provider: slot.provider.id,
+          errorType: reason,
+          shortMessage: error.message.slice(0, 100),
+          fullStack: error.stack || error.message
+        });
+
         this.logEvent({
           timestamp: new Date().toISOString(),
           sessionId: this.sessionId,
@@ -435,6 +496,9 @@ export class ProviderOrchestrator {
     options: SendOptions,
   ): Promise<UnifiedResponse> {
     const candidates = this.selectProvider(options);
+    const taskType = options.taskType ?? 'unknown';
+    this.logRoutingDecision(messages, taskType, candidates);
+
     let fallbackTriggered = false;
     let primaryProvider = candidates[0]?.provider.id ?? 'none';
     let retryCount = 0;
@@ -477,6 +541,14 @@ export class ProviderOrchestrator {
         this.recordFailure(slot, error);
         retryCount++;
         fallbackTriggered = true;
+
+        this.telemetry.logFailure({
+          timestamp: Date.now(),
+          provider: slot.provider.id,
+          errorType: 'server_error',
+          shortMessage: error.message.slice(0, 100),
+          fullStack: error.stack || error.message
+        });
 
         if (options.deterministic) {
           throw new Error(
